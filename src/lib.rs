@@ -33,18 +33,3 @@ pub mod utils;
 
 pub use common::{App, AppInfo, AppInfoContext, AppTrait};
 pub use platforms::{get_all_apps, get_default_search_paths, load_icon};
-
-#[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use crate::AppInfo;
-
-    #[test]
-    fn get_all_apps() {
-        let mut ctx = crate::common::AppInfoContext::new(vec![PathBuf::from("/")]);
-        ctx.refresh_apps().unwrap();
-        let apps = ctx.get_all_apps();
-        assert!(!apps.is_empty());
-    }
-}

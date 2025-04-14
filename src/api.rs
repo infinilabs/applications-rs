@@ -74,7 +74,13 @@ mod tests {
 
     #[test]
     fn test_app_info() {
+        #[cfg(unix)]
         let mut ctx = AppInfoContext::new(vec![PathBuf::from("/")]);
+        #[cfg(windows)]
+        let mut ctx = AppInfoContext::new(vec![PathBuf::from(
+            "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
+        )]);
+
         assert_eq!(ctx.get_all_apps().len(), 0);
         assert_eq!(ctx.is_refreshing(), false);
         ctx.refresh_apps().unwrap();
@@ -88,15 +94,6 @@ mod tests {
         thread::sleep(Duration::from_secs(5));
         assert_eq!(ctx.is_refreshing(), false);
         assert!(ctx.get_all_apps().len() > 0);
-    }
-
-    #[test]
-    fn get_all_apps() {
-        let mut ctx = AppInfoContext::new(vec![PathBuf::from("/")]);
-        ctx.refresh_apps().unwrap();
-        let apps = ctx.get_all_apps();
-        println!("Apps Length: {:#?}", apps.len());
-        assert!(!apps.is_empty());
     }
 
     #[test]
