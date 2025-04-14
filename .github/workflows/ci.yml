@@ -19,20 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: dbg mdfind on macOS 
-        if: matrix.os == 'macos-latest'
-        run: |
-          mdfind "kMDItemKind == 'Application'"
-          echo $?
-          mdfind "kMDItemContentType = 'com.apple.application-bundle'"
-          echo $?
-          mdfind -onlyin / "kMDItemKind == 'Application'"
-          echo $?
-          mdfind -onlyin / "kMDItemContentType = 'com.apple.application-bundle'"
-          echo $?
+      - name: Build
+        run: cargo build --verbose
 
-      # - name: Build
-      #   run: cargo build --verbose
-
-      # - name: Run tests
-      #   run: cargo test --verbose
+      - name: Run tests
+        # Our macOS implementation relies on `mdfind`, which is a CLI client to 
+        # Spotlight, and it seems that Spotlight is disabled in GitHub action 
+        # runners, which means we cannot run tests there.
+        if: matrix.os != 'macos-latest'
+        run: cargo test --verbose
