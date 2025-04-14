@@ -252,8 +252,8 @@ pub fn get_all_apps_mdfind(search_paths: &[PathBuf]) -> Result<Vec<App>> {
         .collect())
 }
 
-pub fn get_default_search_paths() -> Result<Vec<PathBuf>> {
-    Ok(Vec::new())
+pub fn get_default_search_paths() -> Vec<PathBuf> {
+    Vec::new()
 }
 
 pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
