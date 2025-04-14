@@ -417,7 +417,9 @@ mod tests {
 
     #[test]
     fn test_get_all_apps() {
-        let search_paths = vec![PathBuf::from("C:\\")];
+        let search_paths = vec![PathBuf::from(
+            "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
+        )];
         let apps = get_all_apps(&search_paths).unwrap();
         assert!(!apps.is_empty());
     }
