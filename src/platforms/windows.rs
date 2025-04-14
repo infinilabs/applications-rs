@@ -316,19 +316,14 @@ pub fn get_frontmost_application() -> Result<App> {
 }
 
 pub fn get_default_search_paths() -> Vec<PathBuf> {
-    let mut search_paths = vec![];
-    let appdata_path = format!(
-        "{}\\Microsoft\\Windows\\Start Menu\\Programs",
-        std::env::var("APPDATA").unwrap()
-    );
-    let default_paths = vec![
-        "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
-        &appdata_path,
-    ];
-    for path in default_paths {
-        search_paths.push(path);
-    }
-    search_paths
+    vec![
+        format!(
+            "{}\\Microsoft\\Windows\\Start Menu\\Programs",
+            std::env::var("APPDATA").unwrap()
+        )
+        .into(),
+        "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs".into(),
+    ]
 }
 
 pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
@@ -342,15 +337,11 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
 
     let mut apps = vec![];
     for search_path in search_paths {
-        if !search_path.path.exists() {
+        if !search_path.exists() {
             continue;
         }
 
-        for entry in WalkDir::new(search_path.path)
-            .max_depth(search_path.depth as usize)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
+        for entry in WalkDir::new(search_path).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
             if path.is_file() {
                 if let Some(extension) = path.extension() {
