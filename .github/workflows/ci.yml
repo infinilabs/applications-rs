@@ -18,7 +18,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Build
-        run: cargo build --verbose
-      - name: Run tests
-        run: cargo test --verbose
+
+      - name: dbg mdfind on macOS 
+        if: matrix.os = 'macos-latest'
+        run: |
+          mdfind "kMDItemKind == 'Application'"
+          mdfind "kMDItemContentType = 'com.apple.application-bundle'"
+          mdfind -onlyin / "kMDItemKind == 'Application'"
+          mdfind -onlyin / "kMDItemContentType = 'com.apple.application-bundle'"
+
+      # - name: Build
+      #   run: cargo build --verbose
+
+      # - name: Run tests
+      #   run: cargo test --verbose
