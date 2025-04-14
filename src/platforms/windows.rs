@@ -328,15 +328,15 @@ pub fn get_default_search_paths() -> Vec<PathBuf> {
 
 pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
     // Create a HashSet of search paths starting with the default Windows paths
-    let mut search_paths: HashSet<&PathBuf> = HashSet::new();
+    let mut path_set: HashSet<&PathBuf> = HashSet::new();
 
     // Add extra search paths
     for path in search_paths.iter() {
-        search_paths.insert(path);
+        path_set.insert(path);
     }
 
     let mut apps = vec![];
-    for search_path in search_paths {
+    for search_path in path_set {
         if !search_path.exists() {
             continue;
         }
