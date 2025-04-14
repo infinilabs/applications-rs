@@ -23,9 +23,13 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           mdfind "kMDItemKind == 'Application'"
+          echo $?
           mdfind "kMDItemContentType = 'com.apple.application-bundle'"
+          echo $?
           mdfind -onlyin / "kMDItemKind == 'Application'"
+          echo $?
           mdfind -onlyin / "kMDItemContentType = 'com.apple.application-bundle'"
+          echo $?
 
       # - name: Build
       #   run: cargo build --verbose
