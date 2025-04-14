@@ -1,9 +1,12 @@
 use crate::common::App;
+use anyhow::anyhow;
 use anyhow::Result;
 use core_foundation::{bundle::CFBundle, url::CFURL};
 use glob::glob;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
+use std::collections::HashSet;
+use std::path::Path;
 use std::path::PathBuf;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -110,25 +113,56 @@ pub fn run_system_profiler_to_get_app_list() -> Result<String> {
     Ok(std::str::from_utf8(&output.stdout).unwrap().to_string())
 }
 
-pub fn run_mdfind_to_get_app_list() -> Result<Vec<String>> {
+fn run_mdfind_only_in(dir: &Path) -> Result<Vec<String>> {
     let output = std::process::Command::new("mdfind")
+        .arg("-onlyin")
+        .arg(format!("{}", dir.display()))
         .arg("kMDItemKind == 'Application'")
         .output()?;
-    let output = String::from_utf8(output.stdout)?;
-    let lines1: Vec<String> = output.split("\n").map(|line| line.to_string()).collect();
+
+    if !output.status.success() {
+        return Err(anyhow!(
+            "failed to spawn mdfind, stderr [{}]",
+            String::from_utf8_lossy(&output.stdout)
+        ));
+    }
+
+    let stdout = String::from_utf8(output.stdout)?;
+    let lines1: Vec<String> = stdout.split("\n").map(|line| line.to_string()).collect();
+
+
     let output = std::process::Command::new("mdfind")
-        .arg("kMDItemContentType == 'com.apple.application-bundle'")
+        .arg("kMDItemContentType = 'com.apple.application-bundle'")
+        .arg("-onlyin")
+        .arg(format!("{}", dir.display()))
         .output()?;
-    let output = String::from_utf8(output.stdout)?;
-    let lines2: Vec<String> = output.split("\n").map(|line| line.to_string()).collect();
-    // turn lines1 and line2 into set, merge them, and turn them back into Vec
-    let lines: Vec<String> = lines1
+    if !output.status.success() {
+        return Err(anyhow!(
+            "failed to spawn mdfind, stderr [{}]",
+            String::from_utf8_lossy(&output.stdout)
+        ));
+    }
+    let stdout = String::from_utf8(output.stdout)?;
+    let lines2: Vec<String> = stdout.split("\n").map(|line| line.to_string()).collect();
+
+
+    Ok(lines1
         .into_iter()
-        .chain(lines2.into_iter())
+        .chain(lines2)
         .collect::<std::collections::HashSet<String>>()
         .into_iter()
-        .collect();
-    Ok(lines)
+        .collect())
+}
+
+pub fn run_mdfind_to_get_app_list(search_paths: &[PathBuf]) -> Result<Vec<String>> {
+    let mut set = HashSet::new();
+
+    for search_path in search_paths {
+        let apps = run_mdfind_only_in(search_path)?;
+        set.extend(apps);
+    }
+
+    Ok(set.into_iter().collect())
 }
 
 /// Mac App folder is very complicated, I made this struct with some helper functions to make it easier to work with

@@ -11,8 +11,10 @@ use std::{
 pub struct App {
     pub name: String,
     pub icon_path: Option<PathBuf>,
-    pub app_path_exe: Option<PathBuf>, // Path to the .app file for mac, or Exec for Linux, or .exe for Windows
-    pub app_desktop_path: PathBuf,     // Path to the .desktop file for Linux, .app for Mac
+    /// Path to the .app file for mac, or Exec for Linux, or .exe for Windows
+    pub app_path_exe: Option<PathBuf>,
+    // Path to the .desktop file for Linux, .app for Mac
+    pub app_desktop_path: PathBuf,
 }
 
 /// This trait specifies the methods that an app should implement, such as loading its logo
@@ -36,21 +38,9 @@ pub trait AppInfo {
     fn empty_cache(&mut self);
 }
 
-#[derive(Debug, Clone, Default, Eq, PartialEq, Serialize, Deserialize, Hash)]
-pub struct SearchPath {
-    pub path: PathBuf,
-    pub depth: u8,
-}
-
-impl SearchPath {
-    pub fn new(path: PathBuf, depth: u8) -> Self {
-        Self { path, depth }
-    }
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct AppInfoContext {
     pub cached_apps: Arc<Mutex<Vec<App>>>,
     pub refreshing: Arc<AtomicBool>,
-    pub extra_search_paths: Vec<SearchPath>,
+    pub search_paths: Vec<PathBuf>,
 }

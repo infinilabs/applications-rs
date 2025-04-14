@@ -1,4 +1,6 @@
-use applications::{common::SearchPath, AppInfo, AppInfoContext, AppTrait, get_default_search_paths};
+use applications::{
+    common::SearchPath, get_default_search_paths, AppInfo, AppInfoContext, AppTrait,
+};
 use env_logger;
 use log;
 
