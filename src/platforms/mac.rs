@@ -1,4 +1,4 @@
-use crate::common::{App, AppTrait, SearchPath};
+use crate::common::{App, AppTrait};
 use crate::utils::image::{RustImage, RustImageData};
 use crate::utils::mac::{
     run_mdfind_to_get_app_list, run_system_profiler_to_get_app_list, MacAppPath,
@@ -6,7 +6,6 @@ use crate::utils::mac::{
 };
 use anyhow::Result;
 use cocoa::base::id;
-use objc;
 use objc::{class, msg_send, runtime::Object, sel, sel_impl};
 use std::fs::File;
 use std::io::{BufReader, Cursor};
@@ -244,8 +243,8 @@ pub fn get_all_apps_sys_profiler() -> Result<Vec<App>> {
     Ok(apps)
 }
 
-pub fn get_all_apps_mdfind() -> Result<Vec<App>> {
-    let apps_list = run_mdfind_to_get_app_list()?;
+pub fn get_all_apps_mdfind(search_paths: &[PathBuf]) -> Result<Vec<App>> {
+    let apps_list = run_mdfind_to_get_app_list(search_paths)?;
     Ok(apps_list
         .iter()
         .map(|app_path| MacAppPath::new(PathBuf::from(app_path)).to_app())
@@ -253,58 +252,12 @@ pub fn get_all_apps_mdfind() -> Result<Vec<App>> {
         .collect())
 }
 
-/// Search apps in the given path iteratively by walking down the path, depth is the depth of the path
-pub fn search_apps(path: PathBuf, depth: u8) -> Result<Vec<App>> {
-    if depth == 0 {
-        return Ok(vec![]);
-    }
-
-    let mut apps = Vec::new();
-    // Set max_depth on WalkDir to limit traversal depth
-    let walker = WalkDir::new(path).max_depth(depth.into());
-
-    for entry in walker {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-
-        let path = entry.path();
-        if path.is_dir() {
-            // Check if the path has an extension and if it's an .app
-            if let Some(ext) = path.extension() {
-                if ext == "app" {
-                    if let Ok(app) = App::from_path(&path) {
-                        apps.push(app);
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(apps)
+pub fn get_default_search_paths() -> Result<Vec<PathBuf>> {
+    Ok(Vec::new())
 }
 
-pub fn get_default_search_paths() -> Vec<SearchPath> {
-    vec![]
-}
-
-pub fn get_all_apps(extra_search_paths: &Vec<SearchPath>) -> Result<Vec<App>> {
-    let mut all_apps = get_all_apps_mdfind()?;
-    let mut seen_paths = all_apps
-        .iter()
-        .map(|app| app.app_desktop_path.clone())
-        .collect::<std::collections::HashSet<_>>();
-
-    for path in extra_search_paths {
-        let apps = search_apps(path.path.clone(), path.depth)?;
-        for app in apps {
-            if seen_paths.insert(app.app_desktop_path.clone()) {
-                all_apps.push(app);
-            }
-        }
-    }
-    Ok(all_apps)
+pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
+    get_all_apps_mdfind(search_paths)
 }
 
 impl From<MacSystemProfilterAppInfo> for Option<App> {
@@ -409,7 +362,6 @@ impl AppTrait for App {
 mod tests {
     use super::*;
     use crate::utils::mac::MacAppPath;
-    use std::path::PathBuf;
 
     #[test]
     fn test_get_running_apps() {
@@ -426,14 +378,8 @@ mod tests {
     }
 
     #[test]
-    fn get_all_apps() {
-        let apps = super::get_all_apps(&vec![]).unwrap();
-        assert!(apps.len() > 0);
-    }
-
-    #[test]
     fn find_info_plist() {
-        let apps = super::get_all_apps(&vec![]).unwrap();
+        let apps = super::get_all_apps(&[]).unwrap();
         for app in apps {
             let path = app.app_desktop_path;
             let mac_app_path = MacAppPath::new(path.clone());
@@ -445,16 +391,28 @@ mod tests {
     }
 
     #[test]
-    fn test_search_apps() {
-        let apps = search_apps(PathBuf::from("/Applications"), 1).unwrap();
-        println!("Apps: {:#?}", apps);
-    }
+    fn test_get_all_apps() {
+        let apps = get_all_apps(&[PathBuf::from("/"), PathBuf::from("/Users/home/steve")]).unwrap();
+        assert!(apps.iter().any(|app| app.name == "Finder"));
+        assert!(apps.iter().any(|app| app.name == "Spotlight"));
+        assert!(apps.iter().any(|app| app.name == "App Store"));
+        assert!(apps.iter().any(|app| app.name == "Maps"));
+        assert!(apps.iter().any(|app| app.name == "Mail"));
+        assert!(apps.iter().any(|app| app.name == "FaceTime"));
+        assert!(apps.iter().any(|app| app.name == "Weather"));
+        assert!(apps.iter().any(|app| app.name == "Stocks"));
+        assert!(apps.iter().any(|app| app.name == "Books"));
+        assert!(apps.iter().any(|app| app.name == "Preview"));
 
-    // #[test]
-    // fn open_file_with_vscode() {
-    //     let file_path = PathBuf::from("/Users/hacker/Desktop");
-    //     let app_path = PathBuf::from("/Applications/Visual Studio Code.app");
-    //     let app = MacAppPath::new(app_path).to_app().unwrap();
-    //     super::open_file_with(file_path, app);
-    // }
+        // No idea why `apps` does not contain Safari.app
+        // assert!(apps.iter().any(|app| app.name == "Safari"));
+        //
+        // Searching in `/` returns nothing, but doing it in `/Applications`
+        // returns the result. Quite weird considering `/Application` is a descendant of `/`.
+        //
+        // $ mdfind -onlyin / "kMDItemKind == 'Application'" | rg -i safari
+        //
+        // $ mdfind -onlyin /Applications "kMDItemKind == 'Application'" | rg -i safari
+        // /Applications/Safari.app
+    }
 }

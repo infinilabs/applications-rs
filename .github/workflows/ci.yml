@@ -1,8 +1,10 @@
 name: Rust
 
 on:
-  push:
   pull_request:
+  push:
+    branches:
+      - main
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,7 +18,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - name: Build
         run: cargo build --verbose
+
       - name: Run tests
+        # Our macOS implementation relies on `mdfind`, which is a CLI client to 
+        # Spotlight, and it seems that Spotlight is disabled in GitHub action 
+        # runners, which means we cannot run tests there.
+        if: matrix.os != 'macos-latest'
         run: cargo test --verbose

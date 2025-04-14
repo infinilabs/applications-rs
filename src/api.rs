@@ -1,4 +1,4 @@
-use crate::common::{App, AppInfo, AppInfoContext, AppTrait, SearchPath};
+use crate::common::{App, AppInfo, AppInfoContext};
 use crate::platforms::{get_all_apps, get_frontmost_application, get_running_apps, open_file_with};
 use anyhow::Result;
 use std::path::PathBuf;
@@ -7,11 +7,11 @@ use std::sync::{self, Arc, Mutex};
 use std::thread;
 
 impl AppInfoContext {
-    pub fn new(extra_search_paths: Vec<SearchPath>) -> Self {
+    pub fn new(search_paths: Vec<PathBuf>) -> Self {
         AppInfoContext {
             cached_apps: Arc::new(Mutex::new(vec![])),
             refreshing: Arc::new(AtomicBool::new(false)),
-            extra_search_paths,
+            search_paths,
         }
     }
 
@@ -33,7 +33,7 @@ impl AppInfo for AppInfoContext {
     /// Refresh cache of all apps, this is synchronous and could take a few seconds, especially on Mac
     fn refresh_apps(&mut self) -> Result<()> {
         self.refreshing.store(true, sync::atomic::Ordering::Relaxed);
-        let apps = get_all_apps(&self.extra_search_paths)?;
+        let apps = get_all_apps(&self.search_paths)?;
         *self.cached_apps.lock().unwrap() = apps;
         self.refreshing
             .store(false, sync::atomic::Ordering::Relaxed);
@@ -69,11 +69,18 @@ impl AppInfo for AppInfoContext {
 mod tests {
     use crate::common::{AppInfo, AppInfoContext, AppTrait};
     use crate::utils::image::RustImage;
+    use std::path::PathBuf;
     use std::{thread, time::Duration};
 
     #[test]
     fn test_app_info() {
-        let mut ctx = AppInfoContext::new(vec![]);
+        #[cfg(unix)]
+        let mut ctx = AppInfoContext::new(vec![PathBuf::from("/")]);
+        #[cfg(windows)]
+        let mut ctx = AppInfoContext::new(vec![PathBuf::from(
+            "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
+        )]);
+
         assert_eq!(ctx.get_all_apps().len(), 0);
         assert_eq!(ctx.is_refreshing(), false);
         ctx.refresh_apps().unwrap();
@@ -87,15 +94,6 @@ mod tests {
         thread::sleep(Duration::from_secs(5));
         assert_eq!(ctx.is_refreshing(), false);
         assert!(ctx.get_all_apps().len() > 0);
-    }
-
-    #[test]
-    fn get_all_apps() {
-        let mut ctx = AppInfoContext::new(vec![]);
-        ctx.refresh_apps().unwrap();
-        let apps = ctx.get_all_apps();
-        println!("Apps Length: {:#?}", apps.len());
-        assert!(apps.len() > 0);
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::common::{App, SearchPath};
+use crate::common::App;
 use crate::utils::image::{RustImage, RustImageData};
 use crate::AppTrait;
 use anyhow::Ok;
@@ -315,48 +315,33 @@ pub fn get_frontmost_application() -> Result<App> {
     // }
 }
 
-pub fn get_default_search_paths() -> Vec<SearchPath> {
-    let mut search_paths = vec![];
-    let appdata_path = format!(
-        "{}\\Microsoft\\Windows\\Start Menu\\Programs",
-        std::env::var("APPDATA").unwrap()
-    );
-    let default_paths = vec![
-        "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
-        &appdata_path,
-    ];
-    for path in default_paths {
-        search_paths.push(SearchPath::new(PathBuf::from(path), u8::MAX));
-    }
-    search_paths
+pub fn get_default_search_paths() -> Vec<PathBuf> {
+    vec![
+        format!(
+            "{}\\Microsoft\\Windows\\Start Menu\\Programs",
+            std::env::var("APPDATA").unwrap()
+        )
+        .into(),
+        "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs".into(),
+    ]
 }
 
-pub fn get_all_apps(extra_search_paths: &Vec<SearchPath>) -> Result<Vec<App>> {
+pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
     // Create a HashSet of search paths starting with the default Windows paths
-    let mut search_paths: HashSet<SearchPath> = HashSet::new();
-
-    // Add default Windows paths with unlimited depth
-    let default_paths = get_default_search_paths();
-    for path in default_paths {
-        search_paths.insert(path);
-    }
+    let mut path_set: HashSet<&PathBuf> = HashSet::new();
 
     // Add extra search paths
-    for path in extra_search_paths {
-        search_paths.insert(path.clone());
+    for path in search_paths.iter() {
+        path_set.insert(path);
     }
 
     let mut apps = vec![];
-    for search_path in search_paths {
-        if !search_path.path.exists() {
+    for search_path in path_set {
+        if !search_path.exists() {
             continue;
         }
 
-        for entry in WalkDir::new(search_path.path)
-            .max_depth(search_path.depth as usize)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
+        for entry in WalkDir::new(search_path).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
             if path.is_file() {
                 if let Some(extension) = path.extension() {
@@ -432,10 +417,10 @@ mod tests {
 
     #[test]
     fn test_get_all_apps() {
-        let extra_search_paths = Vec::new();
-        let apps = get_all_apps(&extra_search_paths).unwrap();
-        println!("{:#?}", apps);
-        println!("{:#?}", apps.len());
+        let search_paths = vec![PathBuf::from(
+            "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
+        )];
+        let apps = get_all_apps(&search_paths).unwrap();
         assert!(!apps.is_empty());
     }
 
