@@ -1,4 +1,4 @@
-use crate::common::{App, AppInfo, AppInfoContext, SearchPath};
+use crate::common::App;
 use crate::utils::image::{RustImage, RustImageData};
 use crate::AppTrait;
 use anyhow::Result;
@@ -117,7 +117,7 @@ pub fn parse_desktop_file(desktop_file_path: &Path) -> (App, bool) {
     return (app, display);
 }
 
-pub fn get_default_search_paths() -> Vec<SearchPath> {
+pub fn get_default_search_paths() -> Vec<PathBuf> {
     let mut search_paths = vec![];
     // read XDG_DATA_DIRS env var
     let xdg_data_dirs = std::env::var("XDG_DATA_DIRS").unwrap_or("/usr/share".to_string());
@@ -138,30 +138,23 @@ pub fn get_default_search_paths() -> Vec<SearchPath> {
     }
 
     for path in default_search_paths {
-        search_paths.push(SearchPath::new(PathBuf::from(path), 1));
+        search_paths.push(PathBuf::from(path));
     }
     search_paths
 }
 
-pub fn get_all_apps(extra_search_paths: &Vec<SearchPath>) -> Result<Vec<App>> {
-    let default_search_paths = get_default_search_paths();
-    let mut search_dirs: HashSet<SearchPath> = default_search_paths
-        .into_iter()
-        .filter(|dir| dir.path.exists())
-        .map(|dir| SearchPath::new(dir.path, dir.depth))
-        .collect();
-    // Add extra search paths
-    for path in extra_search_paths {
-        search_dirs.insert(path.clone());
-    }
+pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
+    let search_dirs: HashSet<&PathBuf> = search_paths.iter().filter(|dir| dir.exists()).collect();
+
     let icons_db = find_all_app_icons()?;
+
     // for each dir, search for .desktop files
     let mut apps: HashSet<App> = HashSet::new();
     for dir in search_dirs {
-        if !dir.path.exists() {
+        if !dir.exists() {
             continue;
         }
-        for entry in WalkDir::new(dir.path.clone()).max_depth(dir.depth as usize) {
+        for entry in WalkDir::new(dir.clone()) {
             if entry.is_err() {
                 continue;
             }
@@ -172,7 +165,7 @@ pub fn get_all_apps(extra_search_paths: &Vec<SearchPath>) -> Result<Vec<App>> {
             }
 
             if path.extension().unwrap() == "desktop" && path.is_file() {
-                let (mut app, has_display) = parse_desktop_file(&path);
+                let (mut app, has_display) = parse_desktop_file(path);
                 // fill icon path if .desktop file contains only icon name
                 if !has_display {
                     continue;
@@ -283,6 +276,9 @@ pub fn open_file_with(file_path: PathBuf, app: App) {
         .arg(file_path_str)
         .output()
         .expect("failed to execute process");
+    if !output.status.success() {
+        panic!("failed to execute process");
+    }
 }
 
 pub fn get_running_apps() -> Vec<App> {
@@ -356,8 +352,6 @@ pub fn load_icon(path: &Path) -> Result<RustImageData> {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
-    use std::process::Command;
-    use std::{str, vec};
 
     use super::*;
 
@@ -370,15 +364,8 @@ mod tests {
 
     #[test]
     fn test_get_apps() {
-        let apps = get_all_apps(&vec![]).unwrap();
-        println!("Number of Apps: {}", apps.len());
-        assert!(apps.len() > 0);
-        // iterate through apps and find the onces whose name contains "terminal"
-        for app in apps {
-            if app.name.to_lowercase().contains("code") {
-                println!("App: {:#?}", app);
-            }
-        }
+        let apps = get_all_apps(&[PathBuf::from("/")]).unwrap();
+        assert!(!apps.is_empty());
     }
 
     #[test]
@@ -386,7 +373,7 @@ mod tests {
         let start = std::time::Instant::now();
         let icons_icons = find_all_app_icons().unwrap();
         let elapsed = start.elapsed();
-        assert!(icons_icons.len() > 0);
+        assert!(!icons_icons.is_empty());
         println!("Elapsed: {:?}", elapsed);
     }
 }

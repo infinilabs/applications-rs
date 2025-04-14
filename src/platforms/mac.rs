@@ -407,13 +407,12 @@ mod tests {
         // No idea why `apps` does not contain Safari.app
         // assert!(apps.iter().any(|app| app.name == "Safari"));
         //
-        // Searching in `/` returns nothing, but doing it in `/Applications` 
+        // Searching in `/` returns nothing, but doing it in `/Applications`
         // returns the result. Quite weird considering `/Application` is a descendant of `/`.
-        // 
+        //
         // $ mdfind -onlyin / "kMDItemKind == 'Application'" | rg -i safari
         //
         // $ mdfind -onlyin /Applications "kMDItemKind == 'Application'" | rg -i safari
         // /Applications/Safari.app
-
     }
 }

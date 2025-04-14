@@ -130,7 +130,6 @@ fn run_mdfind_only_in(dir: &Path) -> Result<Vec<String>> {
     let stdout = String::from_utf8(output.stdout)?;
     let lines1: Vec<String> = stdout.split("\n").map(|line| line.to_string()).collect();
 
-
     let output = std::process::Command::new("mdfind")
         .arg("kMDItemContentType = 'com.apple.application-bundle'")
         .arg("-onlyin")
@@ -144,7 +143,6 @@ fn run_mdfind_only_in(dir: &Path) -> Result<Vec<String>> {
     }
     let stdout = String::from_utf8(output.stdout)?;
     let lines2: Vec<String> = stdout.split("\n").map(|line| line.to_string()).collect();
-
 
     Ok(lines1
         .into_iter()
