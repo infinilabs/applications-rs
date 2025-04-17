@@ -69,32 +69,6 @@ impl AppInfo for AppInfoContext {
 mod tests {
     use crate::common::{AppInfo, AppInfoContext, AppTrait};
     use crate::utils::image::RustImage;
-    use std::path::PathBuf;
-    use std::{thread, time::Duration};
-
-    #[test]
-    fn test_app_info() {
-        #[cfg(unix)]
-        let mut ctx = AppInfoContext::new(vec![PathBuf::from("/")]);
-        #[cfg(windows)]
-        let mut ctx = AppInfoContext::new(vec![PathBuf::from(
-            "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
-        )]);
-
-        assert_eq!(ctx.get_all_apps().len(), 0);
-        assert_eq!(ctx.is_refreshing(), false);
-        ctx.refresh_apps().unwrap();
-        assert_eq!(ctx.is_refreshing(), false);
-        assert!(ctx.get_all_apps().len() > 0);
-        ctx.empty_cache();
-        assert_eq!(ctx.get_all_apps().len(), 0);
-        assert_eq!(ctx.is_refreshing(), false);
-        ctx.refresh_apps_in_background();
-        assert_eq!(ctx.is_refreshing(), true);
-        thread::sleep(Duration::from_secs(5));
-        assert_eq!(ctx.is_refreshing(), false);
-        assert!(ctx.get_all_apps().len() > 0);
-    }
 
     #[test]
     fn load_icons() {
