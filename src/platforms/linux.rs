@@ -335,4 +335,42 @@ mod tests {
         assert!(!icons_icons.is_empty());
         println!("Elapsed: {:?}", elapsed);
     }
+
+    #[test]
+    fn test_parse_desktop_file_content_invalid_content() {
+        let invalid_content = "";
+        assert!(parse_desktop_file_content(invalid_content).is_none());
+
+        let without_type = r#"[Desktop Entry]
+Version=1.0
+Name = "Zed"
+"#;
+        assert!(parse_desktop_file_content(without_type).is_none());
+    }
+
+    #[test]
+    fn test_parse_desktop_file_content() {
+        let zed = r#"[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Zed
+GenericName=Text Editor
+Comment=A high-performance, multiplayer code editor.
+TryExec=/home/steve/.local/zed.app/libexec/zed-editor
+StartupNotify=true
+Exec=/home/steve/.local/zed.app/libexec/zed-editor %U
+Icon=/home/steve/.local/zed.app/share/icons/hicolor/512x512/apps/zed.png
+Categories=Utility;TextEditor;Development;IDE;
+Keywords=zed;
+MimeType=text/plain;application/x-zerosize;x-scheme-handler/zed;
+Actions=NewWorkspace;
+
+[Desktop Action NewWorkspace]
+Exec=/home/steve/.local/zed.app/libexec/zed-editor --new %U
+Name=Open a new workspace"#;
+
+        let (name, _opt_icon_path) = parse_desktop_file_content(zed).unwrap();
+
+        assert_eq!(name, "Zed");
+    }
 }
