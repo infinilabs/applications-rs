@@ -78,13 +78,9 @@ pub fn parse_desktop_file_content(content: &str) -> Option<(String, Option<PathB
         return None;
     }
 
-    let Some(_exec) = app_fields.exec else {
-        return None;
-    };
+    app_fields.exec?;
 
-    let Some(icon) = desktop_file_entry.icon else {
-        return None;
-    };
+    let icon = desktop_file_entry.icon?;
 
     let name = desktop_file_entry.name.default;
 
@@ -356,21 +352,91 @@ Type=Application
 Name=Zed
 GenericName=Text Editor
 Comment=A high-performance, multiplayer code editor.
-TryExec=/home/steve/.local/zed.app/libexec/zed-editor
+TryExec=/home/foo/.local/zed.app/libexec/zed-editor
 StartupNotify=true
-Exec=/home/steve/.local/zed.app/libexec/zed-editor %U
-Icon=/home/steve/.local/zed.app/share/icons/hicolor/512x512/apps/zed.png
+Exec=/home/foo/.local/zed.app/libexec/zed-editor %U
+Icon=/home/foo/.local/zed.app/share/icons/hicolor/512x512/apps/zed.png
 Categories=Utility;TextEditor;Development;IDE;
 Keywords=zed;
 MimeType=text/plain;application/x-zerosize;x-scheme-handler/zed;
 Actions=NewWorkspace;
 
 [Desktop Action NewWorkspace]
-Exec=/home/steve/.local/zed.app/libexec/zed-editor --new %U
+Exec=/home/foo/.local/zed.app/libexec/zed-editor --new %U
 Name=Open a new workspace"#;
 
         let (name, _opt_icon_path) = parse_desktop_file_content(zed).unwrap();
 
         assert_eq!(name, "Zed");
+    }
+
+    #[test]
+    fn test_parse_desktop_file_content_no_exec() {
+        let zed = r#"[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Zed
+GenericName=Text Editor
+Comment=A high-performance, multiplayer code editor.
+TryExec=/home/foo/.local/zed.app/libexec/zed-editor
+StartupNotify=true
+Icon=/home/foo/.local/zed.app/share/icons/hicolor/512x512/apps/zed.png
+Categories=Utility;TextEditor;Development;IDE;
+Keywords=zed;
+MimeType=text/plain;application/x-zerosize;x-scheme-handler/zed;
+Actions=NewWorkspace;
+
+[Desktop Action NewWorkspace]
+Name=Open a new workspace"#;
+
+        assert!(parse_desktop_file_content(zed).is_none());
+    }
+
+    #[test]
+    fn test_parse_desktop_file_content_no_icon() {
+        let zed = r#"[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Zed
+GenericName=Text Editor
+Comment=A high-performance, multiplayer code editor.
+TryExec=/home/foo/.local/zed.app/libexec/zed-editor
+StartupNotify=true
+Exec=/home/foo/.local/zed.app/libexec/zed-editor %U
+Categories=Utility;TextEditor;Development;IDE;
+Keywords=zed;
+MimeType=text/plain;application/x-zerosize;x-scheme-handler/zed;
+Actions=NewWorkspace;
+
+[Desktop Action NewWorkspace]
+Exec=/home/foo/.local/zed.app/libexec/zed-editor --new %U
+Name=Open a new workspace"#;
+
+        assert!(parse_desktop_file_content(zed).is_none());
+    }
+
+    #[test]
+    fn test_parse_desktop_file_content_no_display_is_set() {
+        let zed = r#"[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Zed
+GenericName=Text Editor
+Comment=A high-performance, multiplayer code editor.
+TryExec=/home/foo/.local/zed.app/libexec/zed-editor
+StartupNotify=true
+Exec=/home/foo/.local/zed.app/libexec/zed-editor %U
+Icon=/home/foo/.local/zed.app/share/icons/hicolor/512x512/apps/zed.png
+Categories=Utility;TextEditor;Development;IDE;
+NoDisplay=true
+Keywords=zed;
+MimeType=text/plain;application/x-zerosize;x-scheme-handler/zed;
+Actions=NewWorkspace;
+
+[Desktop Action NewWorkspace]
+Exec=/home/foo/.local/zed.app/libexec/zed-editor --new %U
+Name=Open a new workspace"#;
+
+        assert!(parse_desktop_file_content(zed).is_none());
     }
 }
