@@ -323,7 +323,7 @@ mod tests {
 
     #[test]
     fn test_get_apps() {
-        let apps = get_all_apps(&[PathBuf::from("/home/steve/.local/share/flatpak/app")]).unwrap();
+        let apps = get_all_apps(&[PathBuf::from("/home")]).unwrap();
         assert!(!apps.is_empty());
     }
 
