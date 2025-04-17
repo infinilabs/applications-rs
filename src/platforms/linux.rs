@@ -2,7 +2,7 @@ use crate::common::App;
 use crate::utils::image::{RustImage, RustImageData};
 use crate::AppTrait;
 use anyhow::Result;
-use ini::ini;
+use freedesktop_file_parser::{parse, EntryType};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io::{prelude::*, BufReader};
@@ -62,85 +62,48 @@ fn clean_exec_path(exec: &str) -> String {
     cleaned.join(" ")
 }
 
-/// return a tuple, first element is the app, second element is a boolean indicating if the desktop file has display
-/// Some apps like url handlers don't have display
-/// The display indicator is not reliable, default to true. It's false iff the desktop file contains `nodisplay=true`
-pub fn parse_desktop_file(desktop_file_path: &Path) -> (App, bool) {
-    let mut app = App::default();
-    app.app_desktop_path = desktop_file_path.to_path_buf();
-    let desktop_file_path_str = desktop_file_path.to_str().unwrap();
-    let map = ini!(desktop_file_path_str);
-    let desktop_entry_exists = map.contains_key("desktop entry");
-    let mut display = true;
-    if desktop_entry_exists {
-        let desktop_entry = map["desktop entry"].clone();
-        if desktop_entry.contains_key("nodisplay") {
-            // I don't want apps like a url handler that doesn't have GUI
-            let nodisplay = desktop_entry["nodisplay"].clone();
-            match nodisplay {
-                Some(nodisplay) => {
-                    if nodisplay == "true" {
-                        display = false;
-                    }
-                }
-                None => {}
-            }
-        }
+pub fn parse_desktop_file_content(content: &str) -> Option<(String, Option<PathBuf>)> {
+    // When parsing fails, we return None rather than erroring out
+    // Because not everybody obeys the rules.
+    let desktop_file = parse(content).ok()?;
+    let desktop_file_entry = desktop_file.entry;
 
-        let raw_exec = desktop_entry
-            .get("exec")
-            .cloned()
-            // try to find it by brute if not found
-            .or_else(|| brute_force_find_exec(&desktop_file_path).ok())
-            .flatten();
+    let EntryType::Application(app_fields) = desktop_file_entry.entry_type else {
+        return None;
+    };
 
-        if let Some(exec) = raw_exec {
-            app.app_path_exe = Some(PathBuf::from(clean_exec_path(&exec)));
-        }
+    let no_display = desktop_file_entry.no_display.unwrap_or(false);
 
-        if desktop_entry.contains_key("icon") {
-            let icon = desktop_entry["icon"].clone();
-            app.icon_path = Some(PathBuf::from(icon.unwrap()));
-        } else {
-            match brute_force_find_icon(&desktop_file_path) {
-                Ok(icon) => {
-                    app.icon_path = icon.map(|icon| PathBuf::from(icon));
-                }
-                Err(_) => {}
-            };
-        }
-        if desktop_entry.contains_key("name") {
-            let name = desktop_entry["name"].clone();
-            app.name = name.unwrap();
-        }
+    if no_display {
+        return None;
     }
-    return (app, display);
+
+    let Some(_exec) = app_fields.exec else {
+        return None;
+    };
+
+    let Some(icon) = desktop_file_entry.icon else {
+        return None;
+    };
+
+    let name = desktop_file_entry.name.default;
+
+    Some((name, icon.get_icon_path()))
 }
 
 pub fn get_default_search_paths() -> Vec<PathBuf> {
-    let mut search_paths = vec![];
-    // read XDG_DATA_DIRS env var
-    let xdg_data_dirs = std::env::var("XDG_DATA_DIRS").unwrap_or("/usr/share".to_string());
-    let xdg_data_dirs: Vec<&str> = xdg_data_dirs.split(':').collect();
-    // make a string sett from xdg_data_dirs
-    let home_dir = std::env::var("HOME").unwrap();
-    let home_path = PathBuf::from(home_dir);
-    let local_share_apps = home_path.join(".local/share/applications");
-    let mut default_search_paths = vec![
-        "/usr/share/applications",
-        "/usr/share/xsessions",
-        "/etc/xdg/autostart",
-        "/var/lib/snapd/desktop/applications",
-        local_share_apps.to_str().unwrap(),
-    ];
-    for path in xdg_data_dirs {
-        default_search_paths.push(path);
-    }
+    let home_dir =
+        PathBuf::from(std::env::var_os("HOME").expect("environment variable $HOME not found"));
 
-    for path in default_search_paths {
-        search_paths.push(PathBuf::from(path));
-    }
-    search_paths
+    vec![
+        "/usr/share/applications".into(),
+        home_dir.join(".local/share/applications"),
+        // Snap
+        "/var/lib/snapd/desktop/applications".into(),
+        // Flatpak
+        "/var/lib/flatpak/app".into(),
+        home_dir.join(".local/share/flatpak/app"),
+    ]
 }
 
 pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
@@ -165,24 +128,19 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
             }
 
             if path.extension().unwrap() == "desktop" && path.is_file() {
-                let (mut app, has_display) = parse_desktop_file(path);
-                // fill icon path if .desktop file contains only icon name
-                if !has_display {
+                let desktop_file_content = std::fs::read_to_string(path)?;
+                let Some((app_name, opt_icon_path)) =
+                    parse_desktop_file_content(&desktop_file_content)
+                else {
                     continue;
-                }
-                if app.icon_path.is_some() {
-                    let icon_path = app.icon_path.clone().unwrap();
-                    if !icon_path.exists() {
-                        // let icon_name = icon_path.file_name().unwrap().to_str().unwrap();
-                        if let Some(icons) = icons_db.get(icon_path.to_str().unwrap()) {
-                            if let Some(icon) = icons.first() {
-                                app.icon_path = Some(icon.path.clone());
-                            }
-                        } else {
-                            app.icon_path = None;
-                        }
-                    }
-                }
+                };
+
+                let app = App {
+                    name: app_name,
+                    icon_path: opt_icon_path,
+                    app_path_exe: None,
+                    app_desktop_path: path.to_path_buf(),
+                };
                 apps.insert(app);
             }
         }
@@ -190,20 +148,22 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
     Ok(apps.iter().cloned().collect())
 }
 
+/// Impl based on https://wiki.archlinux.org/title/Desktop_entries
 pub fn find_all_app_icons() -> Result<HashMap<String, Vec<AppIcon>>> {
-    let hicolor_path: PathBuf = PathBuf::from("/usr/share/icons");
-    let search_dirs = vec![hicolor_path];
+    let mut search_dirs = vec!["/usr/share/icons".into(), "/usr/share/pixmaps".into()];
+    // If $XDG_DATA_DIRS is either not set or empty, a value equal to `/usr/local/share/:/usr/share/` should be used.
+    let xdg_data_dirs =
+        std::env::var("XDG_DATA_DIRS").unwrap_or("/usr/local/share/:/usr/share/".into());
+    for xdg_data_dir in xdg_data_dirs.split(':') {
+        let dir = Path::new(xdg_data_dir).join("icons");
+        search_dirs.push(dir);
+    }
     // filter out search_dirs that do not exist
     let search_dirs: Vec<PathBuf> = search_dirs.into_iter().filter(|dir| dir.exists()).collect();
 
     let mut set = HashSet::new();
 
     for dir in search_dirs {
-        let dir = PathBuf::from(dir);
-        if !dir.exists() {
-            continue;
-        }
-
         for entry in WalkDir::new(dir.clone()) {
             if entry.is_err() {
                 continue;
@@ -333,8 +293,7 @@ impl AppTrait for App {
     }
 
     fn from_path(path: &Path) -> Result<Self> {
-        let (app, _) = parse_desktop_file(path);
-        Ok(app)
+        todo!()
     }
 }
 
@@ -364,7 +323,7 @@ mod tests {
 
     #[test]
     fn test_get_apps() {
-        let apps = get_all_apps(&[PathBuf::from("/")]).unwrap();
+        let apps = get_all_apps(&[PathBuf::from("/home/steve/.local/share/flatpak/app")]).unwrap();
         assert!(!apps.is_empty());
     }
 
