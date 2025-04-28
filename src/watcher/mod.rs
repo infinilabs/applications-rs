@@ -21,7 +21,7 @@ pub enum Change {
         app_path: PathBuf,
     },
     /// NOTE: Since `app_path` has been deleted, so there is no way we can check it, which
-    /// means thare are cases where `app_path` is not a an application.
+    /// means there are cases where `app_path` is not a an application.
     AppDeleted {
         app_path: PathBuf,
     },

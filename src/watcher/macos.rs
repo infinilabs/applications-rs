@@ -15,6 +15,10 @@ use std::{
     os::fd::IntoRawFd,
 };
 
+fn watch_flag() -> FilterFlag {
+    FilterFlag::NOTE_WRITE | FilterFlag::NOTE_DELETE | FilterFlag::NOTE_RENAME
+}
+
 pub struct Watcher {
     search_paths: HashMap<i32, PathBuf>,
     kqueue: Kqueue,
@@ -30,7 +34,7 @@ impl Watcher {
         let mut kevent_to_register = Vec::with_capacity(search_paths.len());
         let mut prev_app_list = HashMap::new();
 
-        for search_path in search_paths.into_iter() {
+        for search_path in search_paths {
             let search_path = search_path.as_ref();
             let owned_fd = open(search_path, OFlag::O_RDONLY, Mode::empty())?;
             let raw_fd = owned_fd.into_raw_fd();
@@ -39,7 +43,7 @@ impl Watcher {
                 raw_fd as usize,
                 EventFilter::EVFILT_VNODE,
                 EvFlags::EV_ADD | EvFlags::EV_CLEAR,
-                FilterFlag::NOTE_WRITE | FilterFlag::NOTE_DELETE | FilterFlag::NOTE_RENAME,
+                watch_flag(),
                 0,
                 0,
             );
@@ -159,7 +163,7 @@ impl Watcher {
             raw_fd as usize,
             EventFilter::EVFILT_VNODE,
             EvFlags::EV_ADD | EvFlags::EV_CLEAR,
-            FilterFlag::NOTE_WRITE | FilterFlag::NOTE_DELETE | FilterFlag::NOTE_RENAME,
+            watch_flag(),
             0,
             0,
         );
