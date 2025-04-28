@@ -351,16 +351,9 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
                         let result = App::from_path(&path);
                         if let Some(app) = result.ok() {
                             log::debug!("Added app: {:?}", app);
-                            // println!("Added app: {:?}", path);
-
-                            if app.name == "Notepad++" {
-                                println!("DBG: Notepad++ added {:?}", app);
-                            }
-
                             apps.push(app);
                         } else {
                             log::debug!("Failed to create App from path: {:?}", path);
-                            // println!("Failed to create App from path: {:?}", path);
                         }
                     }
                 }
