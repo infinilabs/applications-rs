@@ -62,7 +62,7 @@ fn clean_exec_path(exec: &str) -> String {
     cleaned.join(" ")
 }
 
-pub fn parse_desktop_file_content(content: &str) -> Option<(String, Option<PathBuf>)> {
+pub(crate) fn parse_desktop_file_content(content: &str) -> Option<(String, Option<PathBuf>)> {
     // When parsing fails, we return None rather than erroring out
     // Because not everybody obeys the rules.
     let desktop_file = parse(content).ok()?;
