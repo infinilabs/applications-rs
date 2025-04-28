@@ -13,6 +13,7 @@ fn watch_flag() -> AddWatchFlags {
         | AddWatchFlags::IN_MOVE
         | AddWatchFlags::IN_DELETE_SELF
         | AddWatchFlags::IN_MOVE_SELF
+        | AddWatchFlags::IN_ONLYDIR
 }
 
 pub struct Watcher {

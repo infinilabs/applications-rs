@@ -36,6 +36,10 @@ impl Watcher {
 
         for search_path in search_paths {
             let search_path = search_path.as_ref();
+            if !search_path.is_dir() {
+                return Err(anyhow::anyhow!("search_path is not a directory"));
+            }
+
             let owned_fd = open(search_path, OFlag::O_RDONLY, Mode::empty())?;
             let raw_fd = owned_fd.into_raw_fd();
             search_paths_with_fd_info.insert(raw_fd, search_path.to_path_buf());
@@ -155,10 +159,15 @@ impl Watcher {
     }
 
     pub fn watch<P: AsRef<Path>>(&mut self, search_path: P) -> Result<()> {
-        let owned_fd = open(search_path.as_ref(), OFlag::O_RDONLY, Mode::empty())?;
+        let search_path = search_path.as_ref();
+
+        if !search_path.is_dir() {
+            return Err(anyhow::anyhow!("search_path is not a directory"));
+        }
+        let owned_fd = open(search_path, OFlag::O_RDONLY, Mode::empty())?;
         let raw_fd = owned_fd.into_raw_fd();
         self.search_paths
-            .insert(raw_fd, search_path.as_ref().to_path_buf());
+            .insert(raw_fd, search_path.to_path_buf());
         let kevent = KEvent::new(
             raw_fd as usize,
             EventFilter::EVFILT_VNODE,
