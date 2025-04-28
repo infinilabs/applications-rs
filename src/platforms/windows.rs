@@ -200,7 +200,7 @@ fn strip_extended_prefix(path: PathBuf) -> PathBuf {
     }
 }
 
-fn parse_lnk2(path: PathBuf) -> Option<App> {
+pub(crate) fn parse_lnk2(path: PathBuf) -> Option<App> {
     let Some(lnk) = Lnk::try_from(path.as_path()).ok() else {
         log::debug!("Failed to parse lnk with Lnk::try_from: {:?}", path);
         return None;
@@ -347,6 +347,7 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
                 if let Some(extension) = path.extension() {
                     if extension == "lnk" {
                         log::debug!("Found lnk: {:?}", path);
+
                         let result = App::from_path(&path);
                         if let Some(app) = result.ok() {
                             log::debug!("Added app: {:?}", app);
