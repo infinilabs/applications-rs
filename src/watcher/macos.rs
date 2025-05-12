@@ -166,8 +166,7 @@ impl Watcher {
         }
         let owned_fd = open(search_path, OFlag::O_RDONLY, Mode::empty())?;
         let raw_fd = owned_fd.into_raw_fd();
-        self.search_paths
-            .insert(raw_fd, search_path.to_path_buf());
+        self.search_paths.insert(raw_fd, search_path.to_path_buf());
         let kevent = KEvent::new(
             raw_fd as usize,
             EventFilter::EVFILT_VNODE,

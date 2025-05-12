@@ -341,7 +341,11 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
             continue;
         }
 
-        for entry in WalkDir::new(search_path).into_iter().filter_map(|e| e.ok()) {
+        for entry in WalkDir::new(search_path)
+            .max_depth(2)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             let path = entry.path();
             if path.is_file() {
                 if let Some(extension) = path.extension() {
