@@ -198,7 +198,6 @@ mod tests {
         let default_search_path = get_default_search_paths();
         let apps = get_all_apps(&default_search_path).unwrap();
         assert!(!apps.is_empty());
-        println!("DBG: {:#?}", apps);
     }
 
     #[test]
