@@ -6,4 +6,4 @@ pub mod utils;
 pub mod watcher;
 
 pub use common::{App, AppInfo, AppInfoContext, AppTrait};
-pub use platforms::{get_all_apps, get_default_search_paths, load_icon};
+pub use platforms::{get_all_apps, get_default_search_paths};
