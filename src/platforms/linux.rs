@@ -319,7 +319,8 @@ mod tests {
 
     #[test]
     fn test_get_apps() {
-        let apps = get_all_apps(&[PathBuf::from("/home")]).unwrap();
+        let default_search_path = get_default_search_paths();
+        let apps = get_all_apps(&default_search_path).unwrap();
         assert!(!apps.is_empty());
     }
 
