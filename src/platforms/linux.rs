@@ -113,7 +113,7 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
         if !dir.exists() {
             continue;
         }
-        for entry in WalkDir::new(dir.clone()) {
+        for entry in WalkDir::new(dir.clone()).max_depth(1) {
             if entry.is_err() {
                 continue;
             }
@@ -319,7 +319,8 @@ mod tests {
 
     #[test]
     fn test_get_apps() {
-        let apps = get_all_apps(&[PathBuf::from("/home")]).unwrap();
+        let default_search_path = get_default_search_paths();
+        let apps = get_all_apps(&default_search_path).unwrap();
         assert!(!apps.is_empty());
     }
 
