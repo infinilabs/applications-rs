@@ -27,10 +27,11 @@ serde_json = "1.0.116"
 core-foundation = "0.9.4"
 plist = "1.6.1"
 tauri-icns = "0.1.0"
+glob = "0.3.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 freedesktop-file-parser = "0.1.0"
 
 
 [target.'cfg(unix)'.dependencies]
-nix = { git = "https://github.com/nix-rust/nix", features = ["event", "fs", "inotify"] }
+nix = { version = "0.30.1", features = ["event", "fs", "inotify"] }
