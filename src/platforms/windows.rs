@@ -1,5 +1,4 @@
 use crate::common::App;
-use crate::utils::image::{RustImage, RustImageData};
 use crate::AppTrait;
 use anyhow::Ok;
 use anyhow::Result;
@@ -12,7 +11,6 @@ use std::path::{Path, PathBuf};
 use windows_icons::get_icon_by_path;
 use std::process::Command;
 use walkdir::WalkDir;
-use image;
 use std::collections::HashSet;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
