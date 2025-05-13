@@ -1,11 +1,9 @@
 //! Common Data Structures
+
 use crate::utils::image::RustImageData;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::{
-    path::{Path, PathBuf},
-    sync::{atomic::AtomicBool, Arc, Mutex},
-};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq, Hash)]
 pub struct App {
@@ -24,23 +22,4 @@ where
 {
     fn load_icon(&self) -> Result<RustImageData>;
     fn from_path(path: &Path) -> Result<Self>;
-}
-
-pub trait AppInfo {
-    /// It could take a few seconds to retrieve all apps, so a cache needs to be maintained
-    /// This method is used to refresh the cache
-    fn refresh_apps(&mut self) -> Result<()>;
-    fn get_all_apps(&self) -> Vec<App>;
-    fn open_file_with(&self, file_path: PathBuf, app: App);
-    fn get_running_apps(&self) -> Vec<App>;
-    fn get_frontmost_application(&self) -> Result<App>;
-    fn is_refreshing(&self) -> bool;
-    fn empty_cache(&mut self);
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct AppInfoContext {
-    pub cached_apps: Arc<Mutex<Vec<App>>>,
-    pub refreshing: Arc<AtomicBool>,
-    pub search_paths: Vec<PathBuf>,
 }

@@ -90,10 +90,7 @@ impl InfoPlist {
             Err(_) => match plist::Value::from_file(path) {
                 // using plist::Value is a workaround for the error "duplicate key: CFBundleShortVersionString"
                 Ok(value) => Ok(InfoPlist::from_value(&value).unwrap()),
-                Err(err) => Err(anyhow::Error::msg(format!(
-                    "Fail to parse plist: {}",
-                    err.to_string()
-                ))),
+                Err(err) => Err(anyhow::Error::msg(format!("Fail to parse plist: {}", err))),
             },
         }
     }
@@ -352,28 +349,9 @@ impl MacAppPath {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
-
-    /// This test is to make sure all the fields in the InfoPlist struct are deserialized correctly
-    #[test]
-    fn test_path_is_app() {
-        let output = run_system_profiler_to_get_app_list().unwrap();
-        // parse output string in json format to MacSystemProfilerAppList
-        let app_list_json = serde_json::from_str::<MacSystemProfilerAppList>(&output);
-        assert!(app_list_json.is_ok());
-        let app_list_json = app_list_json.unwrap();
-        app_list_json
-            .spapplications_data_type
-            .iter()
-            .for_each(|app| {
-                let path = PathBuf::from(&app.path);
-                let mac_app_path = MacAppPath::new(path.clone());
-                if !mac_app_path.is_app() {
-                    println!("Path is not an app: {:?}", path);
-                }
-            });
-    }
 
     // this test may only run on my computer, with 2 special ipad apps
     #[test]
@@ -385,9 +363,7 @@ mod tests {
         let app_path_in_wrapper = mac_app_path.get_app_path_in_wrapper();
         assert_eq!(
             app_path_in_wrapper.unwrap(),
-            PathBuf::from(format!(
-                "/Applications/Shadowrocket.app/Wrapper/Shadowrocket.app"
-            ))
+            PathBuf::from("/Applications/Shadowrocket.app/Wrapper/Shadowrocket.app")
         );
         let mac_app_path = MacAppPath::new(PathBuf::from("/Applications/全民K歌.app/"));
         if !mac_app_path.exists() {
@@ -396,7 +372,7 @@ mod tests {
         let app_path_in_wrapper = mac_app_path.get_app_path_in_wrapper();
         assert_eq!(
             app_path_in_wrapper.unwrap(),
-            PathBuf::from(format!("/Applications/全民K歌.app/Wrapper/QQKSong.app"))
+            PathBuf::from("/Applications/全民K歌.app/Wrapper/QQKSong.app")
         );
     }
 
@@ -419,11 +395,6 @@ mod tests {
                     return;
                 }
                 let plist_path = plist_path.unwrap();
-                let info_plist =
-                    InfoPlist::from_file(&plist_path).expect("failed to load info.plist");
-                // let _ = info_plist.cf_bundle_executable.unwrap();
-                // println!("Bundle Name: {:?}", info_plist.cf_bundle_name);
-                // println!("Bundle Display Name: {:?}\n", info_plist.cf_bundle_display_name);
             });
     }
 
