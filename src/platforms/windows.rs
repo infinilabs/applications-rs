@@ -307,14 +307,10 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
             if path.is_file() {
                 if let Some(extension) = path.extension() {
                     if extension == "lnk" {
-                        log::debug!("Found lnk: {:?}", path);
-
                         let result = App::from_path(&path);
                         if let Some(app) = result.ok() {
-                            log::debug!("Added app: {:?}", app);
                             apps.push(app);
                         } else {
-                            log::debug!("Failed to create App from path: {:?}", path);
                         }
                     }
                 }
@@ -331,9 +327,7 @@ impl AppTrait for App {
             if extension == "lnk" {
                 if let Some(app) = parse_lnk2(path.to_path_buf()) {
                     return Ok(app);
-                } else {
-                    log::debug!("Failed to parse lnk: {:?}", path);
-                }
+                } 
             }
         }
         Err(anyhow::anyhow!(
