@@ -1,5 +1,4 @@
 use crate::common::App;
-use crate::utils::image::RustImage;
 use crate::AppTrait;
 use anyhow::Result;
 use freedesktop_file_parser::{parse, EntryType};
@@ -158,32 +157,7 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
     Ok(apps.iter().cloned().collect())
 }
 
-pub fn get_frontmost_application() -> Result<App> {
-    unimplemented!()
-}
-
-pub fn get_running_apps() -> Vec<App> {
-    unimplemented!()
-}
-pub fn open_file_with(_file_path: PathBuf, _app: App) {
-    unimplemented!()
-}
-
 impl AppTrait for App {
-    fn load_icon(&self) -> Result<crate::utils::image::RustImageData> {
-        match &self.icon_path {
-            Some(icon_path) => {
-                let icon_path_str = icon_path
-                    .to_str()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to convert icon path to string"))?;
-                let image = crate::utils::image::RustImageData::from_path(icon_path_str)
-                    .map_err(|e| anyhow::anyhow!("Failed to get icon: {}", e))?;
-                Ok(image)
-            }
-            None => Err(anyhow::Error::msg("Icon path is None".to_string())),
-        }
-    }
-
     fn from_path(path: &Path) -> Result<Self> {
         let desktop_file_content = std::fs::read_to_string(&path)?;
         let Some((app_name, opt_icon_path)) = parse_desktop_file_content(&desktop_file_content)

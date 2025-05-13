@@ -1,7 +1,6 @@
 use crate::common::App;
 use anyhow::anyhow;
 use anyhow::Result;
-use core_foundation::{bundle::CFBundle, url::CFURL};
 use glob::glob;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
@@ -90,27 +89,10 @@ impl InfoPlist {
             Err(_) => match plist::Value::from_file(path) {
                 // using plist::Value is a workaround for the error "duplicate key: CFBundleShortVersionString"
                 Ok(value) => Ok(InfoPlist::from_value(&value).unwrap()),
-                Err(err) => Err(anyhow::Error::msg(format!(
-                    "Fail to parse plist: {}",
-                    err.to_string()
-                ))),
+                Err(err) => Err(anyhow::Error::msg(format!("Fail to parse plist: {}", err))),
             },
         }
     }
-
-    pub fn from_string(s: &str) -> Result<InfoPlist> {
-        Ok(plist::from_bytes(s.as_bytes()).expect("failed to read info.plist"))
-    }
-}
-
-/// system_profiler command on mac is the simplest way I found to get a list of apps
-/// This function runs the command and returns the stdout
-pub fn run_system_profiler_to_get_app_list() -> Result<String> {
-    let output = std::process::Command::new("system_profiler")
-        .arg("SPApplicationsDataType")
-        .arg("-json")
-        .output()?;
-    Ok(std::str::from_utf8(&output.stdout).unwrap().to_string())
 }
 
 fn run_mdfind_only_in(dir: &Path) -> Result<Vec<String>> {
@@ -221,30 +203,6 @@ impl MacAppPath {
         None
     }
 
-    pub fn get_bundle(&self) -> CFBundle {
-        CFBundle::new(CFURL::from_path(&self.0, true).expect("Fail to create CFURL"))
-            .expect("Fail to create CFBundle")
-    }
-
-    pub fn get_executable_path_with_bundle(&self) -> Option<PathBuf> {
-        let bundle = self.get_bundle();
-        match bundle.executable_url() {
-            Some(url) => url.to_path(),
-            None => None,
-        }
-    }
-
-    pub fn get_executable_path(&self) -> Option<PathBuf> {
-        let plist_path = self.get_info_plist_path()?;
-        match InfoPlist::from_file(&plist_path) {
-            Ok(info_plist) => match info_plist.cf_bundle_executable {
-                Some(executable) => Some(PathBuf::from(executable)),
-                None => None,
-            },
-            Err(_) => None,
-        }
-    }
-
     pub fn has_info_plist(&self) -> bool {
         self.get_info_plist_path().is_some()
     }
@@ -352,28 +310,9 @@ impl MacAppPath {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
-
-    /// This test is to make sure all the fields in the InfoPlist struct are deserialized correctly
-    #[test]
-    fn test_path_is_app() {
-        let output = run_system_profiler_to_get_app_list().unwrap();
-        // parse output string in json format to MacSystemProfilerAppList
-        let app_list_json = serde_json::from_str::<MacSystemProfilerAppList>(&output);
-        assert!(app_list_json.is_ok());
-        let app_list_json = app_list_json.unwrap();
-        app_list_json
-            .spapplications_data_type
-            .iter()
-            .for_each(|app| {
-                let path = PathBuf::from(&app.path);
-                let mac_app_path = MacAppPath::new(path.clone());
-                if !mac_app_path.is_app() {
-                    println!("Path is not an app: {:?}", path);
-                }
-            });
-    }
 
     // this test may only run on my computer, with 2 special ipad apps
     #[test]
@@ -385,9 +324,7 @@ mod tests {
         let app_path_in_wrapper = mac_app_path.get_app_path_in_wrapper();
         assert_eq!(
             app_path_in_wrapper.unwrap(),
-            PathBuf::from(format!(
-                "/Applications/Shadowrocket.app/Wrapper/Shadowrocket.app"
-            ))
+            PathBuf::from("/Applications/Shadowrocket.app/Wrapper/Shadowrocket.app")
         );
         let mac_app_path = MacAppPath::new(PathBuf::from("/Applications/全民K歌.app/"));
         if !mac_app_path.exists() {
@@ -396,35 +333,8 @@ mod tests {
         let app_path_in_wrapper = mac_app_path.get_app_path_in_wrapper();
         assert_eq!(
             app_path_in_wrapper.unwrap(),
-            PathBuf::from(format!("/Applications/全民K歌.app/Wrapper/QQKSong.app"))
+            PathBuf::from("/Applications/全民K歌.app/Wrapper/QQKSong.app")
         );
-    }
-
-    /// Load all apps on the system and check if the Info.plist file can be loaded
-    #[test]
-    fn test_load_info_plist() {
-        let output = run_system_profiler_to_get_app_list().unwrap();
-        // parse output string in json format to MacSystemProfilerAppList
-        let app_list_json = serde_json::from_str::<MacSystemProfilerAppList>(&output);
-        assert!(app_list_json.is_ok());
-        let app_list_json = app_list_json.unwrap();
-        app_list_json
-            .spapplications_data_type
-            .iter()
-            .for_each(|app| {
-                let path = PathBuf::from(&app.path);
-                let mac_app_path = MacAppPath::new(path.clone());
-                let plist_path = mac_app_path.get_info_plist_path();
-                if plist_path.is_none() {
-                    return;
-                }
-                let plist_path = plist_path.unwrap();
-                let info_plist =
-                    InfoPlist::from_file(&plist_path).expect("failed to load info.plist");
-                // let _ = info_plist.cf_bundle_executable.unwrap();
-                // println!("Bundle Name: {:?}", info_plist.cf_bundle_name);
-                // println!("Bundle Display Name: {:?}\n", info_plist.cf_bundle_display_name);
-            });
     }
 
     #[test]
