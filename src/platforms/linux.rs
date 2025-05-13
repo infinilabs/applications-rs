@@ -170,20 +170,6 @@ pub fn open_file_with(_file_path: PathBuf, _app: App) {
 }
 
 impl AppTrait for App {
-    fn load_icon(&self) -> Result<crate::utils::image::RustImageData> {
-        match &self.icon_path {
-            Some(icon_path) => {
-                let icon_path_str = icon_path
-                    .to_str()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to convert icon path to string"))?;
-                let image = crate::utils::image::RustImageData::from_path(icon_path_str)
-                    .map_err(|e| anyhow::anyhow!("Failed to get icon: {}", e))?;
-                Ok(image)
-            }
-            None => Err(anyhow::Error::msg("Icon path is None".to_string())),
-        }
-    }
-
     fn from_path(path: &Path) -> Result<Self> {
         let desktop_file_content = std::fs::read_to_string(&path)?;
         let Some((app_name, opt_icon_path)) = parse_desktop_file_content(&desktop_file_content)
