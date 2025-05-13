@@ -1,5 +1,4 @@
 use crate::common::App;
-use crate::utils::image::RustImage;
 use crate::AppTrait;
 use anyhow::Result;
 use freedesktop_file_parser::{parse, EntryType};
@@ -156,17 +155,6 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
         }
     }
     Ok(apps.iter().cloned().collect())
-}
-
-pub fn get_frontmost_application() -> Result<App> {
-    unimplemented!()
-}
-
-pub fn get_running_apps() -> Vec<App> {
-    unimplemented!()
-}
-pub fn open_file_with(_file_path: PathBuf, _app: App) {
-    unimplemented!()
 }
 
 impl AppTrait for App {
