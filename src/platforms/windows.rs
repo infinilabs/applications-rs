@@ -10,11 +10,8 @@ use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use std::path::{Path, PathBuf};
 use windows_icons::get_icon_by_path;
-// use std::ffi::OsString;
-// use std::os::windows::ffi::OsStringExt;
 use std::process::Command;
 use walkdir::WalkDir;
-// use winapi::um::winuser::{GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW};
 use image;
 use std::collections::HashSet;
 
@@ -37,14 +34,6 @@ pub struct PowerShellLnkParseResult {
     pub target_path: String,
 }
 
-// fn run_powershell_script(script: &str) -> Result<String> {
-//     let output = Command::new("powershell")
-//         .arg("-Command")
-//         .arg(script)
-//         .output()?;
-//     let output = String::from_utf8(output.stdout)?;
-//     Ok(output)
-// }
 
 pub fn parse_lnk_with_powershell_1(lnk_path: PathBuf) -> anyhow::Result<PowerShellLnkParseResult> {
     let lnk_path = "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Docker Desktop.lnk";
@@ -201,7 +190,6 @@ fn strip_extended_prefix(path: PathBuf) -> PathBuf {
 
 pub(crate) fn parse_lnk2(path: PathBuf) -> Option<App> {
     let Some(lnk) = Lnk::try_from(path.as_path()).ok() else {
-        log::debug!("Failed to parse lnk with Lnk::try_from: {:?}", path);
         return None;
     };
 
@@ -230,14 +218,12 @@ pub(crate) fn parse_lnk2(path: PathBuf) -> Option<App> {
                 if ext == "exe" {
                     app_exe_path = Some(translate_path_alias(icon_path));
                 } else {
-                    log::debug!("");
                     return None;
                 }
             }
         }
     }
     let Some(app_exe_path) = app_exe_path else {
-        log::debug!("app_exe_path is None");
         return None;
     };
     let app_exe_path = translate_path_alias(app_exe_path);
@@ -245,9 +231,7 @@ pub(crate) fn parse_lnk2(path: PathBuf) -> Option<App> {
         true => app_exe_path,
         false => path.parent().unwrap().join(&app_exe_path),
     };
-    log::debug!("exe_abs_path: {:?}", exe_abs_path);
     if !exe_abs_path.exists() {
-        log::warn!("exe_abs_path does not exist: {:?}", exe_abs_path);
         return None;
     }
 
@@ -255,12 +239,6 @@ pub(crate) fn parse_lnk2(path: PathBuf) -> Option<App> {
     let exe_path = if exe_abs_path.is_ok() {
         strip_extended_prefix(exe_abs_path.unwrap())
     } else {
-        log::debug!("exe_abs_path IS NOT ok: {:?}", path);
-        log::error!(
-            "Failed to canonicalize path for {:?}: {:?}",
-            path,
-            exe_abs_path.err().unwrap()
-        );
         return None;
     };
 
@@ -293,26 +271,6 @@ pub fn open_file_with(file_path: PathBuf, app: App) {
         .expect("Failed to open file with the specified application.");
 }
 
-pub fn get_frontmost_application() -> Result<App> {
-    todo!();
-    // unsafe {
-    //     let hwnd = GetForegroundWindow();
-    //     let mut buffer = vec![0u16; GetWindowTextLengthW(hwnd) as usize + 1];
-    //     let len = GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32);
-    //     if len > 0 {
-    //         let window_title = OsString::from_wide(&buffer[..len as usize]);
-    //         let app = App {
-    //             name: window_title.to_string_lossy().into_owned(),
-    //             icon_path: None,
-    //             app_path_exe: None,
-    //             app_desktop_path: None,
-    //         };
-    //         Ok(app)
-    //     } else {
-    //         Err(anyhow::anyhow!("Failed to get frontmost application."))
-    //     }
-    // }
-}
 
 pub fn get_default_search_paths() -> Vec<PathBuf> {
     vec![
@@ -366,9 +324,6 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
     Ok(apps)
 }
 
-pub fn get_running_apps() -> Vec<App> {
-    vec![]
-}
 
 impl AppTrait for App {
     fn from_path(path: &Path) -> Result<Self> {
@@ -410,12 +365,4 @@ mod tests {
             "c:\\windows\\system32\\mstsc.exe"
         );
     }
-
-    // #[test]
-    // fn test_parse_lnk_with_powershell() {
-    //     let path =
-    //         PathBuf::from("C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Docker Desktop.lnk");
-    //     let result = parse_lnk_with_powershell_1(path).unwrap();
-    //     println!("{:#?}", result);
-    // }
 }
