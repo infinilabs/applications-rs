@@ -184,8 +184,19 @@ impl AppTrait for App {
         }
     }
 
-    fn from_path(_path: &Path) -> Result<Self> {
-        todo!()
+    fn from_path(path: &Path) -> Result<Self> {
+        let desktop_file_content = std::fs::read_to_string(&path)?;
+        let Some((app_name, opt_icon_path)) = parse_desktop_file_content(&desktop_file_content)
+        else {
+            return Err(anyhow::anyhow!("invalid desktop file"));
+        };
+
+        Ok(App {
+            name: app_name,
+            icon_path: opt_icon_path,
+            app_path_exe: None,
+            app_desktop_path: path.to_path_buf(),
+        })
     }
 }
 
