@@ -363,7 +363,7 @@ fn list_installed_apps() -> anyhow::Result<()> {
         for subkey_name in key.enum_keys() {
             let subkey_name = subkey_name?;
             if let Ok(subkey) = key.open_subkey(&subkey_name) {
-                if let Ok(display_name) = subkey.get_value::<String>("DisplayName") {
+                if let Ok(display_name) = subkey.get_value::<String, &str>("DisplayName") {
                     let system_component: u32 = subkey.get_value("SystemComponent").unwrap_or(0);
                     if system_component != 1 {
                         println!("{}", display_name);
