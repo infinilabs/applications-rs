@@ -357,6 +357,11 @@ fn list_installed_apps() -> anyhow::Result<()> {
         // UWP apps
         (hklm(), "SOFTWARE\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Families", KEY_READ | KEY_WOW64_64KEY),
         (hkcu(), "Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Families", KEY_READ),
+
+        // AppX system-wide packages
+        (hklm(), "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Appx\\AppxAllUserStore\\Applications", KEY_READ | KEY_WOW64_64KEY),
+        // AppX per-user packages
+        (hkcu(), "Software\\Microsoft\\Windows\\CurrentVersion\\Appx\\PackageUserInformation", KEY_READ),
     ];
 
     for (hive, path, flags) in registry_paths {
