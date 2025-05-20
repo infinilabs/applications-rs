@@ -338,7 +338,7 @@ impl AppTrait for App {
 use winreg::enums::*;
 use winreg::RegKey;
 
-fn list_installed_apps() -> Result<(), Box<dyn std::error::Error>> {
+fn list_installed_apps() -> anyhow::Result<()> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     
     // 64-bit apps
