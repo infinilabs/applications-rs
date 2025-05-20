@@ -1,6 +1,5 @@
 use crate::common::App;
 use crate::AppTrait;
-use anyhow::Ok;
 use anyhow::Result;
 use lnk::ShellLink;
 use parselnk::string_data;
@@ -167,7 +166,7 @@ fn translate_path_alias(path: PathBuf) -> PathBuf {
     for var in env_vars {
         if path_str.starts_with(var) {
             let env_name = var.trim_matches('%').to_uppercase();
-            if let std::result::Result::Ok(value) = std::env::var(env_name) {
+            if let Ok(value) = std::env::var(env_name) {
                 path_str = path_str.replace(var, &value);
                 return PathBuf::from(path_str);
             }
