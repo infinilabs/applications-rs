@@ -337,38 +337,44 @@ impl AppTrait for App {
 use winreg::enums::*;
 use winreg::RegKey;
 
+
 fn list_installed_apps() -> anyhow::Result<()> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    
-    // 64-bit apps
-    let uninstall_64 = hklm.open_subkey_with_flags(
-        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        KEY_READ | KEY_WOW64_64KEY,
-    )?;
-
-    // 32-bit apps (on 64-bit Windows)
-    let uninstall_32 = hklm.open_subkey_with_flags(
-        "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        KEY_READ | KEY_WOW64_32KEY,
-    )?;
-
-    // Current user apps
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let uninstall_user = hkcu.open_subkey_with_flags(
-        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        KEY_READ,
-    )?;
 
-    for key in [uninstall_64, uninstall_32, uninstall_user] {
-        for subkey_name in key.enum_keys() {
-            let subkey_name = subkey_name?;
-            if let Ok(subkey) = key.open_subkey(&subkey_name) {
-                if let Ok(display_name) = subkey.get_value::<String, &str>("DisplayName") {
-                    let system_component: u32 = subkey.get_value("SystemComponent").unwrap_or(0);
-                    // if system_component != 1 {
-                        println!("{}", display_name);
-                    // }
-                }
+    // All registry paths to check
+    let registry_paths = [
+        // Traditional apps
+        (hklm, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall", KEY_READ | KEY_WOW64_64KEY),
+        (hklm, "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall", KEY_READ | KEY_WOW64_32KEY),
+        (hkcu, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", KEY_READ),
+        
+        // UWP apps
+        (hklm, "SOFTWARE\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Families", KEY_READ | KEY_WOW64_64KEY),
+        (hkcu, "Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Families", KEY_READ),
+    ];
+
+    for (hive, path, flags) in registry_paths {
+        let key = match hive.open_subkey_with_flags(path, flags) {
+            Ok(k) => k,
+            Err(_) => continue, // Skip inaccessible keys
+        };
+
+        for subkey_name in key.enum_keys().filter_map(Result::ok) {
+            let subkey = match key.open_subkey(&subkey_name) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+
+            let display_name: String = match subkey.get_value("DisplayName") {
+                Ok(name) => name,
+                Err(_) => continue,
+            };
+
+            // Relaxed filter
+            let system_component: u32 = subkey.get_value("SystemComponent").unwrap_or(0);
+            if system_component != 1 {
+                println!("[Found] {}", display_name);
             }
         }
     }
