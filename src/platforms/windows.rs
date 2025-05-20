@@ -365,9 +365,9 @@ fn list_installed_apps() -> anyhow::Result<()> {
             if let Ok(subkey) = key.open_subkey(&subkey_name) {
                 if let Ok(display_name) = subkey.get_value::<String, &str>("DisplayName") {
                     let system_component: u32 = subkey.get_value("SystemComponent").unwrap_or(0);
-                    if system_component != 1 {
+                    // if system_component != 1 {
                         println!("{}", display_name);
-                    }
+                    // }
                 }
             }
         }
