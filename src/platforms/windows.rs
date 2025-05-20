@@ -339,19 +339,24 @@ use winreg::RegKey;
 
 
 fn list_installed_apps() -> anyhow::Result<()> {
-    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    fn hklm() -> RegKey {
+        RegKey::predef(HKEY_LOCAL_MACHINE)
+    }
+
+    fn hkcu() -> RegKey {
+        RegKey::predef(HKEY_CURRENT_USER)
+    }
 
     // All registry paths to check
     let registry_paths = [
         // Traditional apps
-        (hklm, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall", KEY_READ | KEY_WOW64_64KEY),
-        (hklm, "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall", KEY_READ | KEY_WOW64_32KEY),
-        (hkcu, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", KEY_READ),
+        (hklm(), "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall", KEY_READ | KEY_WOW64_64KEY),
+        (hklm(), "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall", KEY_READ | KEY_WOW64_32KEY),
+        (hkcu(), "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", KEY_READ),
         
         // UWP apps
-        (hklm, "SOFTWARE\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Families", KEY_READ | KEY_WOW64_64KEY),
-        (hkcu, "Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Families", KEY_READ),
+        (hklm(), "SOFTWARE\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Families", KEY_READ | KEY_WOW64_64KEY),
+        (hkcu(), "Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Families", KEY_READ),
     ];
 
     for (hive, path, flags) in registry_paths {
