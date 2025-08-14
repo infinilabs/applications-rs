@@ -13,7 +13,18 @@ pub fn get_all_apps_mdfind(search_paths: &[PathBuf]) -> Result<Vec<App>> {
 }
 
 pub fn get_default_search_paths() -> Vec<PathBuf> {
-    Vec::new()
+    let mut paths = vec![
+        PathBuf::from("/Applications"),
+        PathBuf::from("/System/Applications"),
+        PathBuf::from("/System/Library/CoreServices"),
+    ];
+
+    // Add user's Applications directory
+    if let Ok(home) = std::env::var("HOME") {
+        paths.push(PathBuf::from(home).join("Applications"));
+    }
+
+    paths
 }
 
 pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
