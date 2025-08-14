@@ -232,81 +232,190 @@ impl MacAppPath {
         }
         let info_plist_path = self.get_info_plist_path()?;
         let info_plist = InfoPlist::from_file(&info_plist_path).ok()?;
-        // let bundle_name = info_plist.cf_bundle_name;
-        // let bundle_display_name = info_plist.cf_bundle_display_name;
-        // let name = if bundle_name.is_some() {
-        //     bundle_name.unwrap()
-        // } else if bundle_display_name.is_some() {
-        //     bundle_display_name.unwrap()
-        // } else {
-        //     return None;
-        // };
         // use path filename without .app extension
         let name = self.0.file_stem()?.to_str()?.to_string();
         let is_ios_app = self.has_wrapper();
-        let icon_file_name = if is_ios_app {
-            let icons = info_plist.cf_bundle_icons;
-            match icons {
-                Some(icons) => {
-                    let primary_icon = icons.cf_bundle_primary_icon;
-                    match primary_icon {
-                        Some(icon) => {
-                            let icon_files = icon.cf_bundle_icon_files;
-                            match icon_files {
-                                Some(icon_files) => {
-                                    let first_icon_file: Option<String> =
-                                        icon_files.first().map(|s| s.to_string());
-                                    first_icon_file
-                                }
-                                None => None,
-                            }
-                        }
-                        None => None,
+
+        // Handle iOS apps differently - they have different paths
+        let (resources_path, app_path_exe) = if is_ios_app {
+            // For iOS apps, use the inner app path
+            let inner_app_path = self.get_app_path_in_wrapper()?;
+            let resources_path = inner_app_path.clone();
+            let executable = info_plist.cf_bundle_executable.clone()?;
+            let app_path_exe = inner_app_path.join(executable);
+            (resources_path, Some(app_path_exe))
+        } else {
+            // For regular Mac apps
+            let contents_path = self.0.join("Contents");
+            let resources_path = contents_path.join("Resources");
+            let macos_path = contents_path.join("MacOS");
+            let app_path_exe = match info_plist.cf_bundle_executable.clone() {
+                Some(executable) => {
+                    let app_path_exe = macos_path.join(executable);
+                    if app_path_exe.exists() {
+                        Some(app_path_exe)
+                    } else {
+                        None
                     }
                 }
                 None => None,
-            }
-        } else {
-            info_plist.cf_bundle_icon_file
+            };
+            (resources_path, app_path_exe)
         };
-        let contents_path = self.0.join("Contents");
-        let resources_path = contents_path.join("Resources");
-        let macos_path = contents_path.join("MacOS");
 
-        let icon_path = match icon_file_name {
-            Some(icon_file_name) => {
-                // if icon_file_name doesn't have an extension, add .icns
-                let icon_file_name = if icon_file_name.ends_with(".icns") {
-                    icon_file_name
-                } else {
-                    format!("{}.icns", icon_file_name)
-                };
-                let icon_path = resources_path.join(icon_file_name);
-                if icon_path.exists() {
-                    Some(icon_path)
-                } else {
-                    None
-                }
-            }
-            None => None,
-        };
-        let app_path_exe = match info_plist.cf_bundle_executable {
-            Some(executable) => {
-                let app_path_exe = macos_path.join(executable);
-                if app_path_exe.exists() {
-                    Some(app_path_exe)
-                } else {
-                    None
-                }
-            }
-            None => None,
-        };
+        let icon_path = self.find_icon_path(&info_plist, &resources_path, is_ios_app);
         Some(App {
             name,
             icon_path,
             app_path_exe,
             app_desktop_path: self.0.clone(),
         })
+    }
+
+    fn find_icon_path(
+        &self,
+        info_plist: &InfoPlist,
+        resources_path: &PathBuf,
+        is_ios_app: bool,
+    ) -> Option<PathBuf> {
+        if is_ios_app {
+            // For iOS apps, icons are in the app root, not Resources folder
+            let app_root = resources_path.clone(); // resources_path is actually the app root for iOS
+
+            // Strategy 1: Check CFBundleIcons for iOS apps
+            if let Some(icons) = &info_plist.cf_bundle_icons {
+                if let Some(primary_icon) = &icons.cf_bundle_primary_icon {
+                    if let Some(icon_files) = &primary_icon.cf_bundle_icon_files {
+                        for icon_file in icon_files {
+                            // Try different PNG file patterns for iOS
+                            let patterns = [
+                                format!("{}.png", icon_file),
+                                format!("{}@2x.png", icon_file),
+                                format!("{}@3x.png", icon_file),
+                            ];
+
+                            for pattern in &patterns {
+                                let icon_path = app_root.join(pattern);
+                                if icon_path.exists() {
+                                    return Some(icon_path);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Strategy 2: Check CFBundleIcons~ipad for iPad-specific icons
+            if let Some(icons) = &info_plist.cf_bundle_icons_ipad {
+                if let Some(primary_icon) = &icons.cf_bundle_primary_icon {
+                    if let Some(icon_files) = &primary_icon.cf_bundle_icon_files {
+                        for icon_file in icon_files {
+                            let patterns = [
+                                format!("{}.png", icon_file),
+                                format!("{}@2x.png", icon_file),
+                            ];
+
+                            for pattern in &patterns {
+                                let icon_path = app_root.join(pattern);
+                                if icon_path.exists() {
+                                    return Some(icon_path);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Strategy 3: Check for common iOS icon patterns
+            let common_ios_icons = [
+                "AppIcon60x60@2x.png",
+                "AppIcon60x60@3x.png",
+                "AppIcon76x76@2x~ipad.png",
+                "AppIcon83.5x83.5@2x~ipad.png",
+                "AppIcon29x29@2x.png",
+                "AppIcon40x40@2x.png",
+                "AppIcon57x57@2x.png",
+                "AppIcon72x72@2x~ipad.png",
+            ];
+
+            for icon_name in &common_ios_icons {
+                let icon_path = app_root.join(icon_name);
+                if icon_path.exists() {
+                    return Some(icon_path);
+                }
+            }
+
+            // Strategy 4: Check for Assets.car in iOS app root
+            let assets_car_path = app_root.join("Assets.car");
+            if assets_car_path.exists() {
+                return Some(assets_car_path);
+            }
+
+            // Strategy 5: Check for any PNG files starting with AppIcon or Icon
+            let png_pattern = app_root.join("AppIcon*.png");
+            if let Ok(png_files) = glob::glob(&png_pattern.to_string_lossy()) {
+                if let Some(Ok(png_file)) = png_files.into_iter().next() {
+                    return Some(png_file);
+                }
+            }
+
+            let icon_pattern = app_root.join("Icon*.png");
+            if let Ok(png_files) = glob::glob(&icon_pattern.to_string_lossy()) {
+                if let Some(Ok(png_file)) = png_files.into_iter().next() {
+                    return Some(png_file);
+                }
+            }
+        } else {
+            // For regular macOS apps
+
+            // Strategy 1: Try direct icon file from CFBundleIconFile
+            if let Some(icon_file_name) = &info_plist.cf_bundle_icon_file {
+                let icon_file_name = if icon_file_name.ends_with(".icns") {
+                    icon_file_name.clone()
+                } else {
+                    format!("{}.icns", icon_file_name)
+                };
+                let icon_path = resources_path.join(icon_file_name);
+                if icon_path.exists() {
+                    return Some(icon_path);
+                }
+            }
+
+            // Strategy 2: Try icon name from CFBundleIconName
+            if let Some(icon_name) = &info_plist.cf_bundle_icon_name {
+                let icon_file_name = format!("{}.icns", icon_name);
+                let icon_path = resources_path.join(icon_file_name);
+                if icon_path.exists() {
+                    return Some(icon_path);
+                }
+            }
+
+            // Strategy 3: Check for common icon file patterns
+            let common_icon_names = ["AppIcon.icns", "app.icns", "icon.icns", "application.icns"];
+
+            for icon_name in &common_icon_names {
+                let icon_path = resources_path.join(icon_name);
+                if icon_path.exists() {
+                    return Some(icon_path);
+                }
+            }
+
+            // Strategy 4: Check for any .icns files in Resources
+            let icns_pattern = resources_path.join("*.icns");
+            if let Ok(icns_files) = glob::glob(&icns_pattern.to_string_lossy()) {
+                if let Some(Ok(icns_file)) = icns_files.into_iter().next() {
+                    return Some(icns_file);
+                }
+            }
+
+            // Strategy 5: Check for Assets.car (modern asset catalog)
+            let assets_car_path = resources_path.join("Assets.car");
+            if assets_car_path.exists() {
+                return Some(assets_car_path);
+            }
+        }
+
+        None
     }
 }
 
