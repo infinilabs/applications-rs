@@ -5,6 +5,7 @@ use glob::glob;
 use plist::Value as PlistValue;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs::File;
@@ -450,13 +451,13 @@ impl MacAppPath {
         None
     }
 
-    fn get_localized_app_names(&self) -> HashMap<String, String> {
+    fn get_localized_app_names(&self) -> BTreeMap<String, String> {
         // support for iOS apps has not be implemented
         if self.has_wrapper() {
-            return HashMap::new();
+            return BTreeMap::new();
         }
 
-        let mut names = HashMap::new();
+        let mut names = BTreeMap::new();
         let resources_path = self.0.join("Contents/Resources");
 
         // InfoPlist.loctable is a modern replace for those "*.lproj" folders.
@@ -480,7 +481,7 @@ fn read_loctable(path: &Path) -> Result<PlistValue, String> {
     PlistValue::from_reader(reader).map_err(|e| format!("Failed to parse plist: {}", e))
 }
 
-fn extract_names_from_loctable(loctable: &PlistValue, names: &mut HashMap<String, String>) {
+fn extract_names_from_loctable(loctable: &PlistValue, names: &mut BTreeMap<String, String>) {
     // Look for CFBundleDisplayName or CFBundleName in different locales
     if let Some(dict) = loctable.as_dictionary() {
         for (locale, value) in dict {
@@ -569,7 +570,7 @@ fn infoplist_strings_parser(path: &Path) -> HashMap<String, String> {
 
 fn extract_from_all_lproj_dirs(
     resources_path: &Path,
-    names: &mut HashMap<String, String>,
+    names: &mut BTreeMap<String, String>,
 ) -> Result<(), String> {
     const LPROJ: &str = ".lproj";
 

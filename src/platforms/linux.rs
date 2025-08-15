@@ -3,7 +3,7 @@ use crate::AppTrait;
 use anyhow::Result;
 use freedesktop_file_parser::{parse, EntryType};
 use serde_derive::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
@@ -100,7 +100,7 @@ fn get_flatpak_applications(flatpak_app_path: &Path) -> Result<Vec<App>> {
 
         let app = App {
             name: app_name,
-            localized_app_names: HashMap::new(),
+            localized_app_names: BTreeMap::new(),
             icon_path: opt_icon_path,
             app_path_exe: None,
             app_desktop_path: app_desktop_file_path,
@@ -148,7 +148,7 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
 
                 let app = App {
                     name: app_name,
-                    localized_app_names: HashMap::new(),
+                    localized_app_names: BTreeMap::new(),
                     icon_path: opt_icon_path,
                     app_path_exe: None,
                     app_desktop_path: path.to_path_buf(),
@@ -170,7 +170,7 @@ impl AppTrait for App {
 
         Ok(App {
             name: app_name,
-            localized_app_names: HashMap::new(),
+            localized_app_names: BTreeMap::new(),
             icon_path: opt_icon_path,
             app_path_exe: None,
             app_desktop_path: path.to_path_buf(),
