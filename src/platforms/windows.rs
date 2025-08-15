@@ -140,6 +140,7 @@ fn parse_lnk(path: PathBuf) -> Option<App> {
 
     Some(App {
         name: path.file_stem().unwrap().to_str().unwrap().to_string(),
+        localized_app_names: BTreeMap::new(),
         icon_path,
         app_path_exe: exe,
         app_desktop_path: work_dir,
