@@ -3,11 +3,11 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq, Hash)]
 pub struct App {
     /// Base name. Should only be used when the localized app name needed is
     /// not found.
@@ -24,7 +24,7 @@ pub struct App {
     /// zh_HK: Finder
     /// zh_TW: Finder
     /// ```
-    pub localized_app_names: HashMap<String, String>,
+    pub localized_app_names: BTreeMap<String, String>,
     /// Path to the icon file.
     pub icon_path: Option<PathBuf>,
     /// Path to the executable file.
