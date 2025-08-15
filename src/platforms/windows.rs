@@ -7,11 +7,12 @@ use parselnk::string_data;
 use parselnk::Lnk;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use windows_icons::get_icon_by_path;
 use std::process::Command;
 use walkdir::WalkDir;
-use std::collections::HashSet;
+use windows_icons::get_icon_by_path;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,7 +32,6 @@ pub struct PowerShellLnkParseResult {
     #[serde(rename = "TargetPath")]
     pub target_path: String,
 }
-
 
 pub fn parse_lnk_with_powershell_1(lnk_path: PathBuf) -> anyhow::Result<PowerShellLnkParseResult> {
     let lnk_path = "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Docker Desktop.lnk";
@@ -109,6 +109,7 @@ pub fn parse_lnk_with_powershell_2(lnk_path: PathBuf) -> anyhow::Result<App> {
     };
     let app = App {
         name: name,
+        localized_app_names: HashMap::new(),
         icon_path: icon_path,
         app_path_exe: Some(target_path),
         app_desktop_path: desktop_path,
@@ -255,6 +256,7 @@ pub(crate) fn parse_lnk2(path: PathBuf) -> Option<App> {
     let name = path.file_stem().unwrap().to_str().unwrap().to_string();
     Some(App {
         name,
+        localized_app_names: HashMap::new(),
         icon_path: icon,
         app_path_exe: Some(exe_path),
         app_desktop_path: work_dir,
@@ -268,7 +270,6 @@ pub fn open_file_with(file_path: PathBuf, app: App) {
         .spawn()
         .expect("Failed to open file with the specified application.");
 }
-
 
 pub fn get_default_search_paths() -> Vec<PathBuf> {
     vec![
@@ -318,14 +319,13 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
     Ok(apps)
 }
 
-
 impl AppTrait for App {
     fn from_path(path: &Path) -> Result<Self> {
         if let Some(extension) = path.extension() {
             if extension == "lnk" {
                 if let Some(app) = parse_lnk2(path.to_path_buf()) {
                     return Ok(app);
-                } 
+                }
             }
         }
         Err(anyhow::anyhow!(

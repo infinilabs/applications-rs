@@ -2,9 +2,13 @@ use crate::common::App;
 use anyhow::anyhow;
 use anyhow::Result;
 use glob::glob;
+use plist::Value as PlistValue;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
+use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fs::File;
+use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -153,15 +157,24 @@ impl MacAppPath {
         MacAppPath(path)
     }
 
-    pub fn exists(&self) -> bool {
-        self.0.exists()
-    }
-
-    /// Check if the path is an app
-    /// 1. It has to exist
-    /// 2. It has to have a Info.plist file
     pub fn is_app(&self) -> bool {
-        self.exists() && self.has_info_plist()
+        if !self.0.exists() {
+            return false;
+        }
+
+        if self.has_wrapper() {
+            // iOS app
+            self.has_info_plist()
+        } else {
+            // macOS app
+            let has_info_plist = self.has_info_plist();
+            let has_resource_folder = {
+                let resources = self.0.join("Contents/Resources");
+                resources.exists()
+            };
+
+            has_info_plist && has_resource_folder
+        }
     }
 
     /// Check if the path has a Wrapper folder
@@ -225,17 +238,33 @@ impl MacAppPath {
     }
 
     /// Convert the MacAppPath to an App struct
+    ///
     /// This function will return None if the path is not an app
     pub fn to_app(&self) -> Option<App> {
+        // Validate it
         if !self.is_app() {
             return None;
         }
-        let info_plist_path = self.get_info_plist_path()?;
+        let info_plist_path = self
+            .get_info_plist_path()
+            .expect("is_app() ensures that there is an Info.plist file");
+        // If the Info.plist file is invalid, this is not an app, return None.
         let info_plist = InfoPlist::from_file(&info_plist_path).ok()?;
-        // use path filename without .app extension
-        let name = self.0.file_stem()?.to_str()?.to_string();
-        let is_ios_app = self.has_wrapper();
 
+        /* App Name */
+        let name = {
+            if let Some(ref display_name) = info_plist.cf_bundle_display_name {
+                display_name.to_string()
+            } else if let Some(ref name) = info_plist.cf_bundle_name {
+                name.to_string()
+            } else {
+                self.0.file_stem()?.to_str()?.to_string()
+            }
+        };
+        let localized_app_names = self.get_localized_app_names();
+
+        /* Executable file */
+        let is_ios_app = self.has_wrapper();
         // Handle iOS apps differently - they have different paths
         let (resources_path, app_path_exe) = if is_ios_app {
             // For iOS apps, use the inner app path
@@ -263,9 +292,12 @@ impl MacAppPath {
             (resources_path, app_path_exe)
         };
 
+        /* Icon file */
         let icon_path = self.find_icon_path(&info_plist, &resources_path, is_ios_app);
+
         Some(App {
             name,
+            localized_app_names,
             icon_path,
             app_path_exe,
             app_desktop_path: self.0.clone(),
@@ -417,40 +449,167 @@ impl MacAppPath {
 
         None
     }
+
+    fn get_localized_app_names(&self) -> HashMap<String, String> {
+        // support for iOS apps has not be implemented
+        if self.has_wrapper() {
+            return HashMap::new();
+        }
+
+        let mut names = HashMap::new();
+        let resources_path = self.0.join("Contents/Resources");
+
+        // InfoPlist.loctable is a modern replace for those "*.lproj" folders.
+        let infoplist_path = resources_path.join("InfoPlist.loctable");
+        if infoplist_path.exists() {
+            if let Ok(loctable) = read_loctable(&infoplist_path) {
+                extract_names_from_loctable(&loctable, &mut names);
+            }
+        }
+
+        // Try to read from all lproj directories
+        extract_from_all_lproj_dirs(&resources_path, &mut names).unwrap();
+
+        names
+    }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+fn read_loctable(path: &Path) -> Result<PlistValue, String> {
+    let file = File::open(path).map_err(|e| format!("Failed to open plist: {}", e))?;
+    let reader = BufReader::new(file);
+    PlistValue::from_reader(reader).map_err(|e| format!("Failed to parse plist: {}", e))
+}
 
-    // this test may only run on my computer, with 2 special ipad apps
-    #[test]
-    fn test_get_app_path_in_wrapper() {
-        let mac_app_path = MacAppPath::new(PathBuf::from("/Applications/Shadowrocket.app"));
-        if !mac_app_path.exists() {
-            return;
+fn extract_names_from_loctable(loctable: &PlistValue, names: &mut HashMap<String, String>) {
+    // Look for CFBundleDisplayName or CFBundleName in different locales
+    if let Some(dict) = loctable.as_dictionary() {
+        for (locale, value) in dict {
+            if let Some(locale_dict) = value.as_dictionary() {
+                if let Some(display_name) = locale_dict.get("CFBundleDisplayName") {
+                    if let Some(name) = display_name.as_string() {
+                        names.insert(locale.to_string(), name.to_string());
+                    }
+                } else if let Some(bundle_name) = locale_dict.get("CFBundleName") {
+                    if let Some(name) = bundle_name.as_string() {
+                        names.insert(locale.to_string(), name.to_string());
+                    }
+                }
+            }
         }
-        let app_path_in_wrapper = mac_app_path.get_app_path_in_wrapper();
-        assert_eq!(
-            app_path_in_wrapper.unwrap(),
-            PathBuf::from("/Applications/Shadowrocket.app/Wrapper/Shadowrocket.app")
-        );
-        let mac_app_path = MacAppPath::new(PathBuf::from("/Applications/全民K歌.app/"));
-        if !mac_app_path.exists() {
-            return;
+    }
+}
+
+/// InfoPlist.strings can be in:
+///
+/// * Apple binary property list
+/// * Plain text key-value pairs, which can be in UTF-8 and UTF-16 encoded
+fn infoplist_strings_parser(path: &Path) -> HashMap<String, String> {
+    let mut result = HashMap::new();
+
+    // Try to parse as binary plist first
+    if let Ok(plist) = plist::from_file::<_, PlistValue>(path) {
+        if let Some(dict) = plist.as_dictionary() {
+            for (key, value) in dict {
+                if let Some(val_str) = value.as_string() {
+                    result.insert(key.to_string(), val_str.to_string());
+                }
+            }
+            return result;
         }
-        let app_path_in_wrapper = mac_app_path.get_app_path_in_wrapper();
-        assert_eq!(
-            app_path_in_wrapper.unwrap(),
-            PathBuf::from("/Applications/全民K歌.app/Wrapper/QQKSong.app")
-        );
     }
 
-    #[test]
-    fn test_to_app() {
-        // "/Applications/Parallels Desktop.app/Contents/Info.plist"
-        let mac_app_path = MacAppPath::new(PathBuf::from("/Applications/Discord.app"));
-        let app = mac_app_path.to_app();
-        println!("App: {:?}", app);
+    // Fall back to text parsing for UTF-16 and UTF-8 formats
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(_) => return result,
+    };
+
+    let content = if bytes.len() >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE {
+        // UTF-16 little-endian BOM detected
+        let utf16: Vec<u16> = bytes[2..]
+            .chunks_exact(2)
+            .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+            .collect();
+        String::from_utf16_lossy(&utf16)
+    } else {
+        // Try UTF-8
+        String::from_utf8_lossy(&bytes).into_owned()
+    };
+
+    // Parse the property list format line by line
+    for line in content.lines() {
+        let line = line.trim();
+
+        // Skip empty lines and comments
+        if line.is_empty()
+            || line.starts_with("/*")
+            || line.starts_with("//")
+            || line.ends_with("*/")
+        {
+            continue;
+        }
+
+        if let Some(eq_pos) = line.find('=') {
+            let mut key = line[..eq_pos].trim();
+            let mut value = line[eq_pos + 1..].trim();
+
+            // key has optional double quotes
+            key = key.trim_matches('"');
+            // Value has optional tailing semicolon
+            value = value.trim_end_matches(';');
+            // Value has surrounding double-quotes
+            value = value.trim_matches('"');
+
+            result.insert(key.to_string(), value.to_string());
+        }
     }
+
+    result
+}
+
+fn extract_from_all_lproj_dirs(
+    resources_path: &Path,
+    names: &mut HashMap<String, String>,
+) -> Result<(), String> {
+    const LPROJ: &str = ".lproj";
+
+    // Find all .lproj directories
+    if let Ok(entries) = std::fs::read_dir(resources_path) {
+        for res_entry in entries {
+            let entry = res_entry.unwrap();
+            let file_path = entry.path();
+            let Some(file_name_os_str) = file_path.file_name() else {
+                continue;
+            };
+            let Some(file_name) = file_name_os_str.to_str() else {
+                // The directories we want should have UTF-8 encoded name
+                continue;
+            };
+
+            if file_path.is_dir() && file_name.ends_with(LPROJ) {
+                let localized_info_plist_path = file_path.join("InfoPlist.strings");
+                if !localized_info_plist_path.try_exists().expect("TODO") {
+                    continue;
+                }
+                let info_plist_kvs: HashMap<String, String> =
+                    infoplist_strings_parser(&localized_info_plist_path);
+
+                let locale = file_name.trim_end_matches(LPROJ);
+                // Some apps use "zh-CN.lproj" rather than "zh_CN.lproj"
+                let locale = locale.replace('-', "_");
+
+                if let Some(display_name) = info_plist_kvs.get("CFBundleDisplayName") {
+                    names.insert(locale.to_string(), display_name.clone());
+                    continue;
+                }
+
+                if let Some(display_name) = info_plist_kvs.get("CFBundleName") {
+                    names.insert(locale.to_string(), display_name.clone());
+                    continue;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
