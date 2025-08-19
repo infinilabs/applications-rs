@@ -23,7 +23,9 @@ pub struct AppIcon {
     dimensions: Option<u16>,
 }
 
-pub(crate) fn parse_desktop_file_content(content: &str) -> Option<(String, Option<PathBuf>)> {
+pub(crate) fn parse_desktop_file_content(
+    content: &str,
+) -> Option<(String, BTreeMap<String, String>, Option<PathBuf>)> {
     // When parsing fails, we return None rather than erroring out
     // Because not everybody obeys the rules.
     let desktop_file = parse(content).ok()?;
@@ -44,8 +46,9 @@ pub(crate) fn parse_desktop_file_content(content: &str) -> Option<(String, Optio
     let icon = desktop_file_entry.icon?;
 
     let name = desktop_file_entry.name.default;
+    let localized_names = desktop_file_entry.name.variants.into_iter().collect();
 
-    Some((name, icon.get_icon_path()))
+    Some((name, localized_names, icon.get_icon_path()))
 }
 
 pub fn get_default_search_paths() -> Vec<PathBuf> {
@@ -93,14 +96,15 @@ fn get_flatpak_applications(flatpak_app_path: &Path) -> Result<Vec<App>> {
         }
 
         let desktop_file_content = std::fs::read_to_string(&app_desktop_file_path)?;
-        let Some((app_name, opt_icon_path)) = parse_desktop_file_content(&desktop_file_content)
+        let Some((app_name, localized_app_names, opt_icon_path)) =
+            parse_desktop_file_content(&desktop_file_content)
         else {
             continue;
         };
 
         let app = App {
             name: app_name,
-            localized_app_names: BTreeMap::new(),
+            localized_app_names,
             icon_path: opt_icon_path,
             app_path_exe: None,
             app_desktop_path: app_desktop_file_path,
@@ -140,7 +144,7 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
 
             if path.extension().unwrap() == "desktop" && path.is_file() {
                 let desktop_file_content = std::fs::read_to_string(path)?;
-                let Some((app_name, opt_icon_path)) =
+                let Some((app_name, localized_app_names, opt_icon_path)) =
                     parse_desktop_file_content(&desktop_file_content)
                 else {
                     continue;
@@ -148,7 +152,7 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
 
                 let app = App {
                     name: app_name,
-                    localized_app_names: BTreeMap::new(),
+                    localized_app_names,
                     icon_path: opt_icon_path,
                     app_path_exe: None,
                     app_desktop_path: path.to_path_buf(),
@@ -163,14 +167,15 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
 impl AppTrait for App {
     fn from_path(path: &Path) -> Result<Self> {
         let desktop_file_content = std::fs::read_to_string(&path)?;
-        let Some((app_name, opt_icon_path)) = parse_desktop_file_content(&desktop_file_content)
+        let Some((app_name, localized_app_names, opt_icon_path)) =
+            parse_desktop_file_content(&desktop_file_content)
         else {
             return Err(anyhow::anyhow!("invalid desktop file"));
         };
 
         Ok(App {
             name: app_name,
-            localized_app_names: BTreeMap::new(),
+            localized_app_names,
             icon_path: opt_icon_path,
             app_path_exe: None,
             app_desktop_path: path.to_path_buf(),
@@ -222,9 +227,10 @@ Actions=NewWorkspace;
 Exec=/home/foo/.local/zed.app/libexec/zed-editor --new %U
 Name=Open a new workspace"#;
 
-        let (name, _opt_icon_path) = parse_desktop_file_content(zed).unwrap();
+        let (name, localized_names, _opt_icon_path) = parse_desktop_file_content(zed).unwrap();
 
         assert_eq!(name, "Zed");
+        assert!(localized_names.is_empty());
     }
 
     #[test]
@@ -295,5 +301,37 @@ Exec=/home/foo/.local/zed.app/libexec/zed-editor --new %U
 Name=Open a new workspace"#;
 
         assert!(parse_desktop_file_content(zed).is_none());
+    }
+
+    #[test]
+    fn test_parse_desktop_file_with_localized_names() {
+        let zed = r#"[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Zed
+Name[zh_CN]=代码编辑器
+GenericName=Text Editor
+Comment=A high-performance, multiplayer code editor.
+TryExec=/home/foo/.local/zed.app/libexec/zed-editor
+StartupNotify=true
+Exec=/home/foo/.local/zed.app/libexec/zed-editor %U
+Icon=/home/foo/.local/zed.app/share/icons/hicolor/512x512/apps/zed.png
+Categories=Utility;TextEditor;Development;IDE;
+Keywords=zed;
+MimeType=text/plain;application/x-zerosize;x-scheme-handler/zed;
+Actions=NewWorkspace;
+
+[Desktop Action NewWorkspace]
+Exec=/home/foo/.local/zed.app/libexec/zed-editor --new %U
+Name=Open a new workspace"#;
+
+        let (name, localized_names, _opt_icon_path) = parse_desktop_file_content(zed).unwrap();
+
+        assert_eq!(name, "Zed");
+        assert_eq!(localized_names.len(), 1);
+        assert_eq!(
+            localized_names.get("zh_CN"),
+            Some(&"代码编辑器".to_string())
+        );
     }
 }

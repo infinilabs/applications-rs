@@ -61,7 +61,7 @@ impl Watcher {
                     && file_path.metadata()?.is_file()
                 {
                     let desktop_file_content = std::fs::read_to_string(&file_path)?;
-                    let Some((_app_name, opt_icon_path)) =
+                    let Some((_app_name, _, opt_icon_path)) =
                         parse_desktop_file_content(&desktop_file_content)
                     else {
                         continue;
