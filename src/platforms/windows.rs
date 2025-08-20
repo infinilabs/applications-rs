@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
 use windows_icons::get_icon_by_path;
+use winreg::enums::*;
+use winreg::RegKey;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -283,23 +285,110 @@ pub fn get_default_search_paths() -> Vec<PathBuf> {
     ]
 }
 
-pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
-    // Create a HashSet of search paths starting with the default Windows paths
-    let mut path_set: HashSet<&PathBuf> = HashSet::new();
+pub fn get_apps_from_registry() -> Result<Vec<App>> {
+    let mut apps = Vec::new();
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
 
-    // Add extra search paths
-    for path in search_paths.iter() {
+    // Read from both HKLM and HKCU App Paths
+    for root in &[hklm, hkcu] {
+        if let Ok(app_paths_key) =
+            root.open_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths")
+        {
+            for subkey_name in app_paths_key.enum_keys().flatten() {
+                if let Ok(subkey) = app_paths_key.open_subkey(&subkey_name) {
+                    if let Ok(path) = subkey.get_value::<String, _>("") {
+                        let clean_path = path.trim_matches('"').to_string();
+                        let path_buf = PathBuf::from(&clean_path);
+                        if path_buf.exists() {
+                            let name = path_buf
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or(&subkey_name)
+                                .to_string();
+
+                            apps.push(App {
+                                name,
+                                localized_app_names: BTreeMap::new(),
+                                icon_path: None,
+                                app_path_exe: Some(path_buf.clone()),
+                                app_desktop_path: path_buf.parent().unwrap().to_path_buf(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(apps)
+}
+
+pub fn get_apps_from_path_env() -> Result<Vec<App>> {
+    let mut apps = Vec::new();
+
+    if let Ok(path_var) = std::env::var("PATH") {
+        for path_str in path_var.split(';') {
+            let path = PathBuf::from(path_str);
+            if !path.exists() {
+                continue;
+            }
+
+            if let Ok(entries) = std::fs::read_dir(&path) {
+                for entry in entries.flatten() {
+                    let file_path = entry.path();
+                    if file_path.is_file() {
+                        if let Some(ext) = file_path.extension() {
+                            if ext.eq_ignore_ascii_case("exe") {
+                                let name = file_path
+                                    .file_stem()
+                                    .and_then(|s| s.to_str())
+                                    .unwrap_or("Unknown")
+                                    .to_string();
+
+                                apps.push(App {
+                                    name,
+                                    localized_app_names: BTreeMap::new(),
+                                    icon_path: None,
+                                    app_path_exe: Some(file_path.clone()),
+                                    app_desktop_path: path.clone(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(apps)
+}
+
+pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
+    let mut all_apps = Vec::new();
+    let mut seen_paths = HashSet::new();
+
+    // Create a HashSet of search paths starting with the default Windows paths
+    let mut path_set: HashSet<PathBuf> = HashSet::new();
+
+    // Add default Windows paths
+    for path in get_default_search_paths() {
         path_set.insert(path);
     }
 
-    let mut apps = vec![];
-    for search_path in path_set {
+    // Add extra search paths
+    for path in search_paths.iter() {
+        path_set.insert(path.clone());
+    }
+
+    // 1. Discover from Start Menu shortcuts (.lnk files)
+    for search_path in &path_set {
         if !search_path.exists() {
             continue;
         }
 
         for entry in WalkDir::new(search_path)
-            .max_depth(2)
+            .max_depth(3)
             .into_iter()
             .filter_map(|e| e.ok())
         {
@@ -307,17 +396,45 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
             if path.is_file() {
                 if let Some(extension) = path.extension() {
                     if extension == "lnk" {
-                        let result = App::from_path(&path);
-                        if let Some(app) = result.ok() {
-                            apps.push(app);
-                        } else {
+                        if let Ok(app) = App::from_path(&path) {
+                            if let Some(app_path) = &app.app_path_exe {
+                                if seen_paths.insert(app_path.clone()) {
+                                    all_apps.push(app);
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
-    Ok(apps)
+
+    // 2. Discover from registry App Paths
+    if let Ok(registry_apps) = get_apps_from_registry() {
+        for app in registry_apps {
+            if let Some(app_path) = &app.app_path_exe {
+                if seen_paths.insert(app_path.clone()) {
+                    all_apps.push(app);
+                }
+            }
+        }
+    }
+
+    // 3. Discover from PATH environment variable
+    if let Ok(path_apps) = get_apps_from_path_env() {
+        for app in path_apps {
+            if let Some(app_path) = &app.app_path_exe {
+                if seen_paths.insert(app_path.clone()) {
+                    all_apps.push(app);
+                }
+            }
+        }
+    }
+
+    // Sort apps by name
+    all_apps.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+    Ok(all_apps)
 }
 
 impl AppTrait for App {
