@@ -201,6 +201,9 @@ pub(crate) fn parse_lnk2(path: PathBuf) -> Option<App> {
             icon
         }
     });
+
+    println!("DBG: {} {:?}", path.display(), icon);
+
     let mut app_exe_path: Option<PathBuf> = match lnk.link_info.local_base_path {
         Some(path) => Some(PathBuf::from(path)),
         None => lnk.string_data.relative_path.clone(),
