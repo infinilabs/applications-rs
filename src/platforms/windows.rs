@@ -575,18 +575,7 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
         }
     }
 
-    // 3. Discover from PATH environment variable
-    if let Ok(path_apps) = get_apps_from_path_env() {
-        for app in path_apps {
-            if let Some(app_path) = &app.app_path_exe {
-                if seen_paths.insert(app_path.clone()) {
-                    all_apps.push(app);
-                }
-            }
-        }
-    }
-
-    // 4. Discover UWP/Windows Store apps using PowerShell
+    // 3. Discover UWP/Windows Store apps using PowerShell
     if let Ok(uwp_apps) = get_uwp_apps_powershell() {
         for app in uwp_apps {
             if let Some(app_path) = &app.app_path_exe {
