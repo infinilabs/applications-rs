@@ -8,6 +8,7 @@ use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
+use std::time::{Duration, Instant};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
@@ -365,6 +366,75 @@ pub fn get_apps_from_path_env() -> Result<Vec<App>> {
     Ok(apps)
 }
 
+pub fn get_uwp_apps_powershell() -> Result<Vec<App>> {
+    let mut apps = Vec::new();
+    
+    let script = r#"
+        $apps = Get-AppxPackage | ForEach-Object {
+            $package = $_
+            $manifestPath = Join-Path $package.InstallLocation "AppxManifest.xml"
+            if (Test-Path $manifestPath) {
+                [xml]$manifest = Get-Content $manifestPath
+                $applications = $manifest.Package.Applications.Application
+                if ($applications) {
+                    foreach ($app in $applications) {
+                        $displayName = if ($app.VisualElements.DisplayName) { $app.VisualElements.DisplayName } else { $package.Name }
+                        $appId = $app.Id
+                        $fullAppId = "$($package.PackageFamilyName)!$appId"
+                        
+                        [PSCustomObject]@{
+                            Name = $displayName
+                            AppUserModelId = $fullAppId
+                            InstallLocation = $package.InstallLocation
+                            Description = $package.Description
+                        }
+                    }
+                }
+            }
+        }
+        $apps | ConvertTo-Json -Depth 3
+    "#;
+    
+    let output = Command::new("powershell")
+        .arg("-Command")
+        .arg(script)
+        .output();
+    
+    match output {
+        Ok(output) if output.status.success() => {
+            let json_output = String::from_utf8_lossy(&output.stdout);
+            if let Ok(uwp_data) = serde_json::from_str::<Vec<serde_json::Value>>(&json_output) {
+                for app_data in uwp_data {
+                    if let (Some(name), Some(app_id)) = (
+                        app_data["Name"].as_str(),
+                        app_data["AppUserModelId"].as_str()
+                    ) {
+                        let install_location = app_data["InstallLocation"]
+                            .as_str()
+                            .unwrap_or("");
+                        
+                        let app = App {
+                            name: name.to_string(),
+                            localized_app_names: BTreeMap::new(),
+                            icon_path: None,
+                            app_path_exe: None, // UWP apps use shell:AppsFolder\AppId
+                            app_desktop_path: PathBuf::from(install_location),
+                        };
+                        
+                        apps.push(app);
+                    }
+                }
+            }
+        }
+        _ => {
+            // PowerShell failed or UWP apps not available, return empty vec
+        }
+    }
+    
+    Ok(apps)
+}
+
+
 pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
     let mut all_apps = Vec::new();
     let mut seen_paths = HashSet::new();
@@ -424,6 +494,17 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
     // 3. Discover from PATH environment variable
     if let Ok(path_apps) = get_apps_from_path_env() {
         for app in path_apps {
+            if let Some(app_path) = &app.app_path_exe {
+                if seen_paths.insert(app_path.clone()) {
+                    all_apps.push(app);
+                }
+            }
+        }
+    }
+
+    // 4. Discover UWP/Windows Store apps using PowerShell
+    if let Ok(uwp_apps) = get_uwp_apps_powershell() {
+        for app in uwp_apps {
             if let Some(app_path) = &app.app_path_exe {
                 if seen_paths.insert(app_path.clone()) {
                     all_apps.push(app);
