@@ -633,7 +633,7 @@ mod tests {
             "DBG: {:?}",
             apps.into_iter()
                 .filter(|app| app.name.contains("Chrome"))
-                .collect()
+                .collect::<Vec<_>>()
         );
         assert!(!apps.is_empty());
     }
