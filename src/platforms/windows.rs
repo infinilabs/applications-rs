@@ -295,6 +295,7 @@ pub fn get_apps_from_registry() -> Result<Vec<App>> {
             root.open_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths")
         {
             for subkey_name in app_paths_key.enum_keys().flatten() {
+                let subkey_name: String = subkey_name;
                 if let Ok(subkey) = app_paths_key.open_subkey(&subkey_name) {
                     if let Ok(path) = subkey.get_value::<String, _>("") {
                         let clean_path = path.trim_matches('"').to_string();
@@ -328,7 +329,8 @@ pub fn get_apps_from_path_env() -> Result<Vec<App>> {
 
     if let Ok(path_var) = std::env::var("PATH") {
         for path_str in path_var.split(';') {
-            let path = PathBuf::from(path_str);
+            let path_str: String = path_str.to_string();
+            let path = PathBuf::from(&path_str);
             if !path.exists() {
                 continue;
             }
