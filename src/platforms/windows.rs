@@ -2,13 +2,11 @@ use crate::common::App;
 use crate::AppTrait;
 use anyhow::Result;
 use lnk::ShellLink;
-use parselnk::string_data;
 use parselnk::Lnk;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
-use std::time::{Duration, Instant};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
@@ -545,7 +543,7 @@ mod tests {
             "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
         )];
         let apps = get_all_apps(&search_paths).unwrap();
-        println!("DBG: {:#?}", apps);
+        println!("DBG: {:?}", apps);
         assert!(!apps.is_empty());
     }
 
