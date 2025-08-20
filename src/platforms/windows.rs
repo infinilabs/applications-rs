@@ -405,50 +405,6 @@ pub fn find_uwp_icon(install_path: &Path) -> Option<PathBuf> {
     None
 }
 
-pub fn get_apps_from_path_env() -> Result<Vec<App>> {
-    let mut apps = Vec::new();
-
-    if let Ok(path_var) = std::env::var("PATH") {
-        for path_str in path_var.split(';') {
-            let path_str: String = path_str.to_string();
-            let path = PathBuf::from(&path_str);
-            if !path.exists() {
-                continue;
-            }
-
-            if let Ok(entries) = std::fs::read_dir(&path) {
-                for entry in entries.flatten() {
-                    let file_path = entry.path();
-                    if file_path.is_file() {
-                        if let Some(ext) = file_path.extension() {
-                            if ext.eq_ignore_ascii_case("exe") {
-                                let name = file_path
-                                    .file_stem()
-                                    .and_then(|s| s.to_str())
-                                    .unwrap_or("Unknown")
-                                    .to_string();
-
-                                // Use the executable itself as icon source
-                                let icon_path = Some(file_path.clone());
-
-                                apps.push(App {
-                                    name,
-                                    localized_app_names: BTreeMap::new(),
-                                    icon_path,
-                                    app_path_exe: Some(file_path.clone()),
-                                    app_desktop_path: path.clone(),
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(apps)
-}
-
 pub fn get_uwp_apps_powershell() -> Result<Vec<App>> {
     let mut apps = Vec::new();
 
@@ -622,7 +578,7 @@ mod tests {
             "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
         )];
         let apps = get_all_apps(&search_paths).unwrap();
-        println!("DBG: {:?}", apps);
+        println!("DBG: {:?}", apps.into_iter().map(|app| app.name.to_string()).collect::<Vec<_>>());
     }
 
     #[test]
