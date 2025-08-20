@@ -258,6 +258,9 @@ pub(crate) fn parse_lnk2(path: PathBuf) -> Option<App> {
         None => exe_path.parent().unwrap().to_path_buf(),
     };
 
+    // fuck it
+    let icon = icon.unwrap_or(exe_path);
+
     let name = path.file_stem().unwrap().to_str().unwrap().to_string();
     Some(App {
         name,
