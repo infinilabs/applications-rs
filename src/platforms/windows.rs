@@ -1,6 +1,7 @@
 use crate::common::App;
 use crate::AppTrait;
 use anyhow::Result;
+use glob;
 use lnk::ShellLink;
 use parselnk::Lnk;
 use serde_derive::Deserialize;
@@ -306,10 +307,21 @@ pub fn get_apps_from_registry() -> Result<Vec<App>> {
                                 .unwrap_or(&subkey_name)
                                 .to_string();
 
+                            // Try to get icon from registry, otherwise use executable
+                            let icon_path = subkey
+                                .get_value::<String, _>("DefaultIcon")
+                                .ok()
+                                .or_else(|| subkey.get_value::<String, _>("Icon").ok())
+                                .map(|icon| {
+                                    let clean_icon = icon.trim_matches('"').to_string();
+                                    translate_path_alias(PathBuf::from(clean_icon))
+                                })
+                                .or_else(|| extract_icon_path(&path_buf));
+
                             apps.push(App {
                                 name,
                                 localized_app_names: BTreeMap::new(),
-                                icon_path: None,
+                                icon_path,
                                 app_path_exe: Some(path_buf.clone()),
                                 app_desktop_path: path_buf.parent().unwrap().to_path_buf(),
                             });
@@ -321,6 +333,76 @@ pub fn get_apps_from_registry() -> Result<Vec<App>> {
     }
 
     Ok(apps)
+}
+
+/// Helper function to extract icon path from various sources
+pub fn extract_icon_path(app_path: &Path) -> Option<PathBuf> {
+    if !app_path.exists() {
+        return None;
+    }
+
+    // Priority 1: If it's a .exe, use it directly for icon extraction
+    if app_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.eq_ignore_ascii_case("exe"))
+        .unwrap_or(false)
+    {
+        return Some(app_path.to_path_buf());
+    }
+
+    // Priority 2: Look for .ico files in the same directory
+    let parent_dir = app_path.parent()?;
+    let stem = app_path.file_stem()?.to_str()?;
+
+    // Common icon file names
+    let icon_names = [
+        format!("{}.ico", stem),
+        "app.ico".to_string(),
+        "icon.ico".to_string(),
+        "application.ico".to_string(),
+    ];
+
+    for icon_name in icon_names {
+        let icon_path = parent_dir.join(icon_name);
+        if icon_path.exists() {
+            return Some(icon_path);
+        }
+    }
+
+    // Priority 3: Use the executable itself
+    Some(app_path.to_path_buf())
+}
+
+/// Helper function to find UWP app icons in the package directory
+pub fn find_uwp_icon(install_path: &Path) -> Option<PathBuf> {
+    if !install_path.exists() {
+        return None;
+    }
+
+    // Common UWP icon locations and patterns
+    let icon_patterns = [
+        "Assets\\*.png",
+        "Assets\\*.ico",
+        "*.png",
+        "Images\\*.png",
+        "Assets\\Square44x44Logo.png",
+        "Assets\\Square150x150Logo.png",
+        "Assets\\Logo.png",
+    ];
+
+    for pattern in icon_patterns {
+        let search_path = install_path.join(pattern);
+        if let Ok(matches) = glob::glob(search_path.to_string_lossy().as_ref()) {
+            for entry in matches.flatten() {
+                if entry.is_file() {
+                    return Some(entry);
+                }
+            }
+        }
+    }
+
+    None
 }
 
 pub fn get_apps_from_path_env() -> Result<Vec<App>> {
@@ -346,10 +428,13 @@ pub fn get_apps_from_path_env() -> Result<Vec<App>> {
                                     .unwrap_or("Unknown")
                                     .to_string();
 
+                                // Use the executable itself as icon source
+                                let icon_path = Some(file_path.clone());
+
                                 apps.push(App {
                                     name,
                                     localized_app_names: BTreeMap::new(),
-                                    icon_path: None,
+                                    icon_path,
                                     app_path_exe: Some(file_path.clone()),
                                     app_desktop_path: path.clone(),
                                 });
@@ -366,7 +451,7 @@ pub fn get_apps_from_path_env() -> Result<Vec<App>> {
 
 pub fn get_uwp_apps_powershell() -> Result<Vec<App>> {
     let mut apps = Vec::new();
-    
+
     let script = r#"
         $apps = Get-AppxPackage | ForEach-Object {
             $package = $_
@@ -392,12 +477,12 @@ pub fn get_uwp_apps_powershell() -> Result<Vec<App>> {
         }
         $apps | ConvertTo-Json -Depth 3
     "#;
-    
+
     let output = Command::new("powershell")
         .arg("-Command")
         .arg(script)
         .output();
-    
+
     match output {
         Ok(output) if output.status.success() => {
             let json_output = String::from_utf8_lossy(&output.stdout);
@@ -405,20 +490,22 @@ pub fn get_uwp_apps_powershell() -> Result<Vec<App>> {
                 for app_data in uwp_data {
                     if let (Some(name), Some(app_id)) = (
                         app_data["Name"].as_str(),
-                        app_data["AppUserModelId"].as_str()
+                        app_data["AppUserModelId"].as_str(),
                     ) {
-                        let install_location = app_data["InstallLocation"]
-                            .as_str()
-                            .unwrap_or("");
-                        
+                        let install_location = app_data["InstallLocation"].as_str().unwrap_or("");
+
+                        // Try to find UWP app icon
+                        let install_path = PathBuf::from(install_location);
+                        let icon_path = find_uwp_icon(&install_path);
+
                         let app = App {
                             name: name.to_string(),
                             localized_app_names: BTreeMap::new(),
-                            icon_path: None,
+                            icon_path,
                             app_path_exe: None, // UWP apps use shell:AppsFolder\AppId
-                            app_desktop_path: PathBuf::from(install_location),
+                            app_desktop_path: install_path,
                         };
-                        
+
                         apps.push(app);
                     }
                 }
@@ -428,10 +515,9 @@ pub fn get_uwp_apps_powershell() -> Result<Vec<App>> {
             // PowerShell failed or UWP apps not available, return empty vec
         }
     }
-    
+
     Ok(apps)
 }
-
 
 pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
     let mut all_apps = Vec::new();
