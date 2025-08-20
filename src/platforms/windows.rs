@@ -265,7 +265,7 @@ pub(crate) fn parse_lnk2(path: PathBuf) -> Option<App> {
     Some(App {
         name,
         localized_app_names: BTreeMap::new(),
-        icon_path: icon,
+        icon_path: Some(icon),
         app_path_exe: Some(exe_path),
         app_desktop_path: work_dir,
     })
