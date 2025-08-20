@@ -596,8 +596,6 @@ fn extract_from_all_lproj_dirs(
                     infoplist_strings_parser(&localized_info_plist_path);
 
                 let locale = file_name.trim_end_matches(LPROJ);
-                // Some apps use "zh-CN.lproj" rather than "zh_CN.lproj"
-                let locale = locale.replace('-', "_");
 
                 if let Some(display_name) = info_plist_kvs.get("CFBundleDisplayName") {
                     names.insert(locale.to_string(), display_name.clone());
