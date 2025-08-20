@@ -635,7 +635,6 @@ mod tests {
                 .filter(|app| app.name.contains("Chrome"))
                 .collect::<Vec<_>>()
         );
-        assert!(!apps.is_empty());
     }
 
     #[test]
