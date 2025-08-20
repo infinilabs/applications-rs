@@ -629,7 +629,12 @@ mod tests {
             "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
         )];
         let apps = get_all_apps(&search_paths).unwrap();
-        println!("DBG: {:?}", apps);
+        println!(
+            "DBG: {:?}",
+            apps.into_iter()
+                .filter(|app| app.name.contains("Chrome"))
+                .collect()
+        );
         assert!(!apps.is_empty());
     }
 
