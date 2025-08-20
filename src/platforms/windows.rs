@@ -564,6 +564,8 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
         }
     }
 
+    println!("DBG: count {}", all_apps.len());
+
     // 2. Discover from registry App Paths
     if let Ok(registry_apps) = get_apps_from_registry() {
         for app in registry_apps {
@@ -574,6 +576,7 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
             }
         }
     }
+    println!("DBG: count {}", all_apps.len());
 
     // 3. Discover UWP/Windows Store apps using PowerShell
     if let Ok(uwp_apps) = get_uwp_apps_powershell() {
@@ -585,6 +588,7 @@ pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
             }
         }
     }
+    println!("DBG: count {}", all_apps.len());
 
     // Sort apps by name
     all_apps.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
