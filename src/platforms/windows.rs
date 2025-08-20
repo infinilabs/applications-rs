@@ -1,6 +1,5 @@
 use crate::common::App;
 use crate::AppTrait;
-use anyhow::Ok;
 use anyhow::Result;
 use lnk::ShellLink;
 use parselnk::string_data;
