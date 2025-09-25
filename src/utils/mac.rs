@@ -1,6 +1,6 @@
 use crate::common::App;
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 use glob::glob;
 use plist::Value as PlistValue;
 use serde_derive::Deserialize;
@@ -254,9 +254,13 @@ impl MacAppPath {
 
         /* App Name */
         let name = {
-            if let Some(ref display_name) = info_plist.cf_bundle_display_name {
+            if let Some(ref display_name) = info_plist.cf_bundle_display_name
+                && !display_name.is_empty()
+            {
                 display_name.to_string()
-            } else if let Some(ref name) = info_plist.cf_bundle_name {
+            } else if let Some(ref name) = info_plist.cf_bundle_name
+                && !name.is_empty()
+            {
                 name.to_string()
             } else {
                 self.0.file_stem()?.to_str()?.to_string()

@@ -1,11 +1,11 @@
 use super::Change;
 use crate::platforms::parse_lnk2;
 use anyhow::Result;
+use notify::Result as NotifyResult;
 use notify::event::CreateKind;
 use notify::event::RemoveKind;
 use notify::windows::ReadDirectoryChangesWatcher;
-use notify::Result as NotifyResult;
-use notify::{recommended_watcher, Event, EventKind, RecursiveMode, Watcher as WatcherTrait};
+use notify::{Event, EventKind, RecursiveMode, Watcher as WatcherTrait, recommended_watcher};
 use std::ffi::OsStr;
 use std::path::Path;
 use std::sync::mpsc;

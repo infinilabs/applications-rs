@@ -1,5 +1,5 @@
 use crate::common::{App, AppTrait};
-use crate::utils::mac::{run_mdfind_to_get_app_list, MacAppPath, MacSystemProfilterAppInfo};
+use crate::utils::mac::{MacAppPath, MacSystemProfilterAppInfo, run_mdfind_to_get_app_list};
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 

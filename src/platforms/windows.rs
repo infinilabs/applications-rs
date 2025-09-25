@@ -1,10 +1,10 @@
-use crate::common::App;
 use crate::AppTrait;
+use crate::common::App;
 use anyhow::Ok;
 use anyhow::Result;
 use lnk::ShellLink;
-use parselnk::string_data;
 use parselnk::Lnk;
+use parselnk::string_data;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use std::collections::BTreeMap;

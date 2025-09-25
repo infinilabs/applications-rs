@@ -1,7 +1,7 @@
-use crate::common::App;
 use crate::AppTrait;
+use crate::common::App;
 use anyhow::Result;
-use freedesktop_file_parser::{parse, EntryType};
+use freedesktop_file_parser::{EntryType, parse};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::collections::HashSet;
