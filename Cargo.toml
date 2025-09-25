@@ -1,7 +1,7 @@
 [package]
 name = "applications"
 version = "0.3.1"
-edition = "2021"
+edition = "2024"
 description = "A cross-platform library for finding installed applications."
 license = "MIT"
 repository = "https://github.com/HuakunShen/applications-rs/"
