@@ -139,6 +139,63 @@ fn run_mdfind_only_in(dir: &Path) -> Result<Vec<String>> {
         .collect())
 }
 
+pub fn run_lsregister_to_get_app_list(search_paths: &[PathBuf]) -> Result<Vec<String>> {
+    let output = std::process::Command::new("/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister")
+        .arg("-dump")
+        .output()?;
+
+    if !output.status.success() {
+        return Err(anyhow!(
+            "failed to spawn lsregister, stderr [{}]",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let stdout = String::from_utf8(output.stdout)?;
+    let mut apps = HashSet::new();
+
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.starts_with("path:") {
+            if let Some(rest) = line.strip_prefix("path:") {
+                let mut path_str = rest.trim();
+                // Remove trailing (0x...) if present
+                if let Some(idx) = path_str.rfind(" (0x") {
+                    path_str = &path_str[..idx];
+                }
+
+                if path_str.ends_with(".app") {
+                    let path = PathBuf::from(path_str);
+                    // Check if in search_paths
+                    for search_path in search_paths {
+                        if path.starts_with(search_path) {
+                            apps.insert(path_str.to_string());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(apps.into_iter().collect())
+}
+
+pub fn check_spotlight_enabled() -> bool {
+    let output = std::process::Command::new("mdutil")
+        .arg("-s")
+        .arg("/")
+        .output();
+
+    match output {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            !stdout.contains("Spotlight server is disabled")
+        }
+        Err(_) => false,
+    }
+}
+
 pub fn run_mdfind_to_get_app_list(search_paths: &[PathBuf]) -> Result<Vec<String>> {
     let mut set = HashSet::new();
 

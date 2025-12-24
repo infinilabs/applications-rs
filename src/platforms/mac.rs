@@ -1,10 +1,22 @@
 use crate::common::{App, AppTrait};
-use crate::utils::mac::{MacAppPath, MacSystemProfilterAppInfo, run_mdfind_to_get_app_list};
+use crate::utils::mac::{
+    MacAppPath, MacSystemProfilterAppInfo, check_spotlight_enabled, run_lsregister_to_get_app_list,
+    run_mdfind_to_get_app_list,
+};
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 pub fn get_all_apps_mdfind(search_paths: &[PathBuf]) -> Result<Vec<App>> {
     let apps_list = run_mdfind_to_get_app_list(search_paths)?;
+    Ok(apps_list
+        .iter()
+        .map(|app_path| MacAppPath::new(PathBuf::from(app_path)).to_app())
+        .filter_map(|x| x)
+        .collect())
+}
+
+pub fn get_all_apps_lsregister(search_paths: &[PathBuf]) -> Result<Vec<App>> {
+    let apps_list = run_lsregister_to_get_app_list(search_paths)?;
     Ok(apps_list
         .iter()
         .map(|app_path| MacAppPath::new(PathBuf::from(app_path)).to_app())
@@ -28,7 +40,11 @@ pub fn get_default_search_paths() -> Vec<PathBuf> {
 }
 
 pub fn get_all_apps(search_paths: &[PathBuf]) -> Result<Vec<App>> {
-    get_all_apps_mdfind(search_paths)
+    if check_spotlight_enabled() {
+        get_all_apps_mdfind(search_paths)
+    } else {
+        get_all_apps_lsregister(search_paths)
+    }
 }
 
 impl From<MacSystemProfilterAppInfo> for Option<App> {
