@@ -70,6 +70,8 @@ pub struct InfoPlist {
     cf_bundle_identifier: Option<String>,
     #[serde(rename = "CFBundleInfoDictionaryVersion")]
     cf_bundle_info_dictionary_version: Option<String>,
+    #[serde(rename = "CFBundleDevelopmentRegion")]
+    cf_bundle_development_region: Option<String>,
     #[serde(rename = "CFBundleName")]
     cf_bundle_name: Option<String>,
     #[serde(rename = "CFBundlePackageType")]
@@ -521,6 +523,38 @@ impl MacAppPath {
         let mut names = BTreeMap::new();
         let resources_path = self.0.join("Contents/Resources");
 
+        let development_region = self
+            .get_info_plist_path()
+            .and_then(|path| InfoPlist::from_file(&path).ok())
+            .and_then(|plist| plist.cf_bundle_development_region);
+
+        // Case 1:
+        //
+        // Some apps (e.g. Thunder) only ship a top-level InfoPlist.strings
+        // without any *.lproj folders.
+        let base_infoplist_strings = resources_path.join("InfoPlist.strings");
+        if base_infoplist_strings.exists() {
+            let info_plist_kvs = infoplist_strings_parser(&base_infoplist_strings);
+            let locale_key = development_region.as_deref().unwrap_or("und");
+
+            // Prefer CFBundleDisplayName if exists
+            if let Some(display_name) = info_plist_kvs.get("CFBundleDisplayName")
+                && !display_name.is_empty()
+            {
+                names
+                    .entry(locale_key.to_string())
+                    .or_insert_with(|| display_name.clone());
+            } else if let Some(name) = info_plist_kvs.get("CFBundleName")
+                && !name.is_empty()
+            {
+                names
+                    .entry(locale_key.to_string())
+                    .or_insert_with(|| name.clone());
+            }
+        }
+
+        // Case 2
+        //
         // InfoPlist.loctable is a modern replace for those "*.lproj" folders.
         let infoplist_path = resources_path.join("InfoPlist.loctable");
         if infoplist_path.exists() {
@@ -529,8 +563,10 @@ impl MacAppPath {
             }
         }
 
+        // Case 2
+        //
         // Try to read from all lproj directories
-        extract_from_all_lproj_dirs(&resources_path, &mut names).unwrap();
+        let _ = extract_from_all_lproj_dirs(&resources_path, &mut names);
 
         names
     }
